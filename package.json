@@ -1,6 +1,6 @@
 {
   "name": "@arraypress/color-utils",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Color utility functions — luminance calculation, contrast detection, hex manipulation, WCAG accessibility helpers.",
   "type": "module",
   "main": "src/index.js",
@@ -11,11 +11,23 @@
       "types": "./src/index.d.ts"
     }
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
     "test": "node --test tests/color-utils.test.js"
   },
-  "keywords": ["color", "hex", "rgb", "luminance", "contrast", "wcag", "accessibility", "lighten", "darken"],
+  "keywords": [
+    "color",
+    "hex",
+    "rgb",
+    "luminance",
+    "contrast",
+    "wcag",
+    "accessibility",
+    "lighten",
+    "darken"
+  ],
   "author": "David Sherlock",
   "license": "MIT",
   "repository": {
