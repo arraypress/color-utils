@@ -40,3 +40,32 @@ export function mix(hex1: string, hex2: string, ratio?: number): string;
 
 /** Add alpha to a hex color, returning rgba() string. */
 export function withAlpha(hex: string, alpha: number): string;
+
+export interface InitialsAvatarOptions {
+  /** Background colour (hex or any CSS-color string). Default `'#141414'`. */
+  bg?: string;
+  /** Initials text colour. Default `'#8a8a8a'`. */
+  text?: string;
+  /** Accent wash drawn in the top-left corner. Default subtle yellow tint. */
+  accent?: string;
+  /** SVG `viewBox` size in user units. Default `400`. */
+  size?: number;
+  /** Override the auto-picked font size (170 for 1–2 chars, 130 for 3+). */
+  fontSize?: number;
+  /** Override the `aria-label`. Defaults to the initials. */
+  label?: string;
+}
+
+/**
+ * Build an inline `data:image/svg+xml,…` URL for a monogram avatar.
+ * Drop into an `<img src=…>` as a placeholder when no artwork is
+ * available. Pair with `getInitials()` from `@arraypress/text`.
+ *
+ * @example
+ * const avatar = generateInitialsAvatar('DS');
+ * // data:image/svg+xml;utf8,%3Csvg…
+ */
+export function generateInitialsAvatar(
+  initials: string,
+  options?: InitialsAvatarOptions
+): string;

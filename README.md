@@ -115,6 +115,37 @@ withAlpha('#ff0000', 0.5) // 'rgba(255, 0, 0, 0.5)'
 withAlpha('#000', 0.75)   // 'rgba(0, 0, 0, 0.75)'
 ```
 
+### `generateInitialsAvatar(initials, options?)`
+
+Build an inline `data:image/svg+xml,…` URL for a monogram avatar. Drop straight into `<img src=…>` as the placeholder when no artwork is available — slots into the same `object-fit: cover` styling as real images.
+
+Pair with `getInitials()` from [`@arraypress/text`](https://github.com/arraypress/text) for the initials, and `contrastText()` from this library when you want the foreground to auto-derive from the background.
+
+```js
+import { generateInitialsAvatar, contrastText } from '@arraypress/color-utils';
+import { getInitials } from '@arraypress/text';
+
+const avatar = generateInitialsAvatar(getInitials('David Sherlock'));
+// data:image/svg+xml;utf8,%3Csvg…
+
+// Theme-aware tile — text colour auto-derived from background:
+const bg = '#141414';
+const themed = generateInitialsAvatar('DS', { bg, text: contrastText(bg) });
+```
+
+**Options:**
+
+| | Type | Default | |
+|---|---|---|---|
+| `bg` | `string` | `'#141414'` | Background colour (any CSS-color string). |
+| `text` | `string` | `'#8a8a8a'` | Initials text colour. |
+| `accent` | `string` | `'rgba(255,242,0,0.08)'` | Subtle wash drawn top-left. |
+| `size` | `number` | `400` | SVG `viewBox` size (resolution-independent). |
+| `fontSize` | `number` | `170` for 1–2 chars, `130` for 3+ | Font size in user units. |
+| `label` | `string` | initials | `aria-label` for accessibility. |
+
+The output is a real image, not a styled `<div>`, so it uniformly slots into the same CSS rules as your real cover artwork.
+
 ## License
 
 MIT

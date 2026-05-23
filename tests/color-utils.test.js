@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  generateInitialsAvatar,
   hexToRgb,
   rgbToHex,
   luminance,
@@ -187,5 +188,98 @@ describe('withAlpha', () => {
 
   it('works with 3-digit hex', () => {
     assert.equal(withAlpha('#f00', 0.75), 'rgba(255, 0, 0, 0.75)');
+  });
+});
+
+// ── generateInitialsAvatar ──────────────────
+
+describe('generateInitialsAvatar', () => {
+  /**
+   * Helper — decode the data-URL into its SVG markup so tests
+   * can assert on the contents.
+   */
+  function decode(url) {
+    assert.ok(url.startsWith('data:image/svg+xml;utf8,'), 'url is a data:image/svg+xml URL');
+    return decodeURIComponent(url.slice('data:image/svg+xml;utf8,'.length));
+  }
+
+  it('returns a data:image/svg+xml URL', () => {
+    const url = generateInitialsAvatar('DS');
+    assert.ok(url.startsWith('data:image/svg+xml;utf8,'));
+  });
+
+  it('embeds the initials as the <text> content', () => {
+    const url = generateInitialsAvatar('DS');
+    const svg = decode(url);
+    assert.ok(svg.includes('>DS</text>'));
+  });
+
+  it('defaults to 400×400 viewBox', () => {
+    const svg = decode(generateInitialsAvatar('AB'));
+    assert.ok(svg.includes('viewBox="0 0 400 400"'));
+    assert.ok(svg.includes('width="400"'));
+    assert.ok(svg.includes('height="400"'));
+  });
+
+  it('honours a custom size', () => {
+    const svg = decode(generateInitialsAvatar('AB', { size: 128 }));
+    assert.ok(svg.includes('viewBox="0 0 128 128"'));
+  });
+
+  it('uses larger font for 1–2 char monograms', () => {
+    const svg = decode(generateInitialsAvatar('AB'));
+    assert.ok(svg.includes('font-size="170"'));
+  });
+
+  it('uses smaller font for 3+ char monograms', () => {
+    const svg = decode(generateInitialsAvatar('ABC'));
+    assert.ok(svg.includes('font-size="130"'));
+  });
+
+  it('honours an explicit fontSize override', () => {
+    const svg = decode(generateInitialsAvatar('AB', { fontSize: 60 }));
+    assert.ok(svg.includes('font-size="60"'));
+  });
+
+  it('uses default bg/text/accent colours', () => {
+    const svg = decode(generateInitialsAvatar('AB'));
+    assert.ok(svg.includes('fill="#141414"'), 'default bg');
+    assert.ok(svg.includes('fill="#8a8a8a"'), 'default text');
+    assert.ok(svg.includes('rgba(255,242,0,0.08)'), 'default accent');
+  });
+
+  it('honours custom bg / text / accent', () => {
+    const svg = decode(
+      generateInitialsAvatar('AB', { bg: '#fff', text: '#000', accent: 'rgba(0,0,255,0.1)' }),
+    );
+    assert.ok(svg.includes('fill="#fff"'));
+    assert.ok(svg.includes('fill="#000"'));
+    assert.ok(svg.includes('rgba(0,0,255,0.1)'));
+  });
+
+  it('sets aria-label to initials by default', () => {
+    const svg = decode(generateInitialsAvatar('DS'));
+    assert.ok(svg.includes('aria-label="DS"'));
+  });
+
+  it('honours a custom aria-label', () => {
+    const svg = decode(generateInitialsAvatar('DS', { label: 'David Sherlock' }));
+    assert.ok(svg.includes('aria-label="David Sherlock"'));
+  });
+
+  it('escapes XML-significant chars in initials', () => {
+    const svg = decode(generateInitialsAvatar('<&>'));
+    assert.ok(svg.includes('&lt;&amp;&gt;'));
+  });
+
+  it('renders a placeholder dot when initials are empty', () => {
+    const svg = decode(generateInitialsAvatar(''));
+    assert.ok(svg.includes('>·</text>'));
+    assert.ok(svg.includes('aria-label="Placeholder"'));
+  });
+
+  it('coerces non-string initials safely', () => {
+    const svg = decode(generateInitialsAvatar(undefined));
+    assert.ok(svg.includes('>·</text>'));
   });
 });

@@ -191,3 +191,105 @@ export function withAlpha(hex, alpha) {
   const { r, g, b } = hexToRgb(hex);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
+
+// ── Initials avatar ─────────────────────────
+
+/**
+ * Tiny XML escaper for the few characters that can break an
+ * inline SVG attribute value. Kept local because the avatar
+ * generator is the only thing in this library that emits XML.
+ */
+function _escapeXml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/**
+ * Build an inline `data:image/svg+xml,…` URL containing a centred
+ * monogram on a coloured tile. Drop the result straight into an
+ * `<img src=…>` and the browser renders it without any extra
+ * network requests. Useful as the "no artwork yet" fallback for
+ * product cards, author tiles, testimonial avatars — anywhere a
+ * cover image is missing and you'd otherwise have a styled `<div>`
+ * with the initials inside.
+ *
+ * Pair with `getInitials()` from `@arraypress/text` for the
+ * initials, and with `contrastText()` from this library if you
+ * want the foreground colour to auto-derive from the background.
+ *
+ * The output is a real image (not a div with text), so it slots
+ * into the same `.card-image img` styling rules as real artwork —
+ * `object-fit: cover` and friends work uniformly.
+ *
+ * @param {string} initials - 1–4 character monogram. Pass an empty
+ *   string and you'll get a tile with a placeholder dot.
+ * @param {Object} [options]
+ * @param {string} [options.bg='#141414'] - Background colour (hex
+ *   or any CSS colour string the browser can parse inside an SVG).
+ * @param {string} [options.text='#8a8a8a'] - Initials text colour.
+ * @param {string} [options.accent='rgba(255,242,0,0.08)'] - Subtle
+ *   accent wash drawn in the top-left of the tile, blended onto
+ *   the background via a radial gradient.
+ * @param {number} [options.size=400] - Square SVG `viewBox` size in
+ *   user units. The output is resolution-independent; this only
+ *   affects the natural width/height an `<img>` will reserve when
+ *   no CSS dimensions are set.
+ * @param {number} [options.fontSize] - Override the auto-picked
+ *   font size. Defaults to `170` for 1–2 character monograms and
+ *   `130` for 3+ characters so longer strings still fit the tile.
+ * @param {string} [options.label] - Override the `aria-label` for
+ *   accessibility. Defaults to the initials themselves.
+ *
+ * @returns {string} `data:image/svg+xml;utf8,…` URL.
+ *
+ * @example
+ * import { getInitials } from '@arraypress/text';
+ * import { generateInitialsAvatar } from '@arraypress/color-utils';
+ *
+ * const initials = getInitials('David Sherlock');
+ * const avatarUrl = generateInitialsAvatar(initials);
+ * // <img src={avatarUrl} alt="..." />
+ *
+ * @example
+ * // Theme-aware tile — derive a readable text colour from the bg.
+ * import { contrastText, generateInitialsAvatar } from '@arraypress/color-utils';
+ *
+ * const bg = '#141414';
+ * const avatarUrl = generateInitialsAvatar('DS', {
+ *   bg,
+ *   text: contrastText(bg),
+ * });
+ */
+export function generateInitialsAvatar(initials, options = {}) {
+  const text = (initials ?? '').toString();
+  const bg = options.bg ?? '#141414';
+  const fg = options.text ?? '#8a8a8a';
+  const accent = options.accent ?? 'rgba(255,242,0,0.08)';
+  const size = options.size ?? 400;
+  /* Smaller default font size for 3+ character monograms so they
+   * still fit inside the tile without clipping. The threshold is
+   * empirical (looks right across most fonts at 400×400). */
+  const fontSize = options.fontSize ?? (text.length >= 3 ? 130 : 170);
+  const label = _escapeXml(options.label ?? (text || 'Placeholder'));
+
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" ` +
+    `width="${size}" height="${size}" role="img" aria-label="${label}">` +
+    `<defs><radialGradient id="g" cx="30%" cy="20%" r="60%">` +
+    `<stop offset="0%" stop-color="${_escapeXml(accent)}"/>` +
+    `<stop offset="100%" stop-color="transparent"/>` +
+    `</radialGradient></defs>` +
+    `<rect width="${size}" height="${size}" fill="${_escapeXml(bg)}"/>` +
+    `<rect width="${size}" height="${size}" fill="url(#g)"/>` +
+    `<text x="${size / 2}" y="${size / 2}" text-anchor="middle" dominant-baseline="central" ` +
+    `font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" ` +
+    `font-weight="700" font-size="${fontSize}" letter-spacing="-4" fill="${_escapeXml(fg)}">` +
+    `${_escapeXml(text || '·')}` +
+    `</text></svg>`;
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
