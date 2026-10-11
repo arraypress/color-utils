@@ -1,7 +1,7 @@
 {
   "name": "@arraypress/color-utils",
-  "version": "1.1.0",
-  "description": "Color utility functions — luminance calculation, contrast detection, hex manipulation, WCAG accessibility helpers.",
+  "version": "1.2.0",
+  "description": "Color utility functions \u2014 luminance calculation, contrast detection, hex manipulation, WCAG accessibility helpers.",
   "type": "module",
   "main": "src/index.js",
   "types": "src/index.d.ts",

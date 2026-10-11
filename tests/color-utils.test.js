@@ -8,6 +8,9 @@ import {
   isLight,
   isDark,
   contrastText,
+  relativeLuminance,
+  contrastRatio,
+  readableText,
   lighten,
   darken,
   mix,
@@ -281,5 +284,27 @@ describe('generateInitialsAvatar', () => {
   it('coerces non-string initials safely', () => {
     const svg = decode(generateInitialsAvatar(undefined));
     assert.ok(svg.includes('>·</text>'));
+  });
+});
+
+describe('relativeLuminance / contrastRatio / readableText (WCAG)', () => {
+  it('gives 0 for black and 1 for white', () => {
+    assert.equal(relativeLuminance('#000000'), 0);
+    assert.equal(relativeLuminance('#ffffff'), 1);
+  });
+
+  it('gives 21 for black on white, 1 for a color on itself, either way round', () => {
+    assert.equal(contrastRatio('#000000', '#ffffff'), 21);
+    assert.equal(contrastRatio('#ffffff', '#000000'), 21);
+    assert.equal(contrastRatio('#635bff', '#635bff'), 1);
+    assert.ok(Math.abs(contrastRatio('#777777', '#ffffff') - 4.48) < 0.01);
+  });
+
+  it('picks the text with more contrast, crossing over near 0.179', () => {
+    assert.equal(readableText('#635bff'), '#ffffff');
+    assert.equal(readableText('#ffd60a'), '#000000');
+    assert.equal(readableText('#000000'), '#ffffff');
+    assert.equal(readableText('#ffffff'), '#000000');
+    assert.equal(readableText('#635bff', '#fff', '#111'), '#fff');
   });
 });

@@ -40,8 +40,9 @@ export function rgbToHex(r, g, b) {
 }
 
 /**
- * Calculate the perceived brightness of a hex color using the WCAG luminance formula.
- * Returns a value between 0 (black) and 255 (white).
+ * Calculate the perceived brightness of a hex color (the YIQ formula,
+ * weighting green most). Returns a value between 0 (black) and 255 (white).
+ * For WCAG's relative luminance, see {@link relativeLuminance}.
  *
  * @param {string} hex - Hex color string (with or without '#' prefix).
  * @returns {number} Perceived brightness (0-255).
@@ -104,6 +105,63 @@ export function isDark(hex, threshold = 160) {
  */
 export function contrastText(hex, lightColor = '#ffffff', darkColor = '#000000') {
   return isLight(hex) ? darkColor : lightColor;
+}
+
+/**
+ * The WCAG 2 relative luminance of a hex color: how much light it gives
+ * off, from 0 (black) to 1 (white), with each channel linearised first.
+ *
+ * @param {string} hex - Hex color string (with or without '#' prefix).
+ * @returns {number} Relative luminance (0-1).
+ *
+ * @example
+ * relativeLuminance('#ffffff');  // 1
+ * relativeLuminance('#000000');  // 0
+ * relativeLuminance('#635bff');  // ~0.15
+ */
+export function relativeLuminance(hex) {
+  const { r, g, b } = hexToRgb(hex);
+  const linear = (c) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+}
+
+/**
+ * The WCAG 2 contrast ratio between two colors, from 1 (the same) to 21
+ * (black on white). Text needs 4.5 (AA) or 3 when large.
+ *
+ * @param {string} a - One hex color.
+ * @param {string} b - The other.
+ * @returns {number} The ratio (1-21), whichever is lighter on top.
+ *
+ * @example
+ * contrastRatio('#000000', '#ffffff');  // 21
+ * contrastRatio('#777777', '#ffffff');  // ~4.48
+ */
+export function contrastRatio(a, b) {
+  const [light, dark] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+}
+
+/**
+ * The more readable of two text colors on a background, by WCAG contrast
+ * ratio. With black and white (the defaults), white wins below a relative
+ * luminance of about 0.179.
+ *
+ * @param {string} hex - Background hex color string.
+ * @param {string} [lightColor='#ffffff'] - The light text color.
+ * @param {string} [darkColor='#000000'] - The dark text color.
+ * @returns {string} Whichever of the two contrasts more with the background.
+ *
+ * @example
+ * readableText('#635bff');            // '#ffffff'
+ * readableText('#ffd60a');            // '#000000'
+ * readableText('#635bff', '#fff', '#111');  // '#fff'
+ */
+export function readableText(hex, lightColor = '#ffffff', darkColor = '#000000') {
+  return contrastRatio(hex, lightColor) >= contrastRatio(hex, darkColor) ? lightColor : darkColor;
 }
 
 /**

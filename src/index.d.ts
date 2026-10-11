@@ -14,8 +14,17 @@ export function hexToRgb(hex: string): RGB;
 /** Convert RGB components to hex string. Values are clamped to 0-255. */
 export function rgbToHex(r: number, g: number, b: number): string;
 
-/** Calculate perceived brightness (0-255) using WCAG formula. */
+/** Calculate perceived brightness (0-255), the YIQ formula. For WCAG, see relativeLuminance. */
 export function luminance(hex: string): number;
+
+/** The WCAG 2 relative luminance of a color (0 black - 1 white). */
+export function relativeLuminance(hex: string): number;
+
+/** The WCAG 2 contrast ratio between two colors (1-21). */
+export function contrastRatio(a: string, b: string): number;
+
+/** The more readable of two text colors (default white, black) on a background, by WCAG contrast ratio. */
+export function readableText(hex: string, lightColor?: string, darkColor?: string): string;
 
 /** Returns true if the color is light (brightness > threshold). */
 export function isLight(hex: string, threshold?: number): boolean;
