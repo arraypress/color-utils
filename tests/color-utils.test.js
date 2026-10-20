@@ -11,6 +11,8 @@ import {
   relativeLuminance,
   contrastRatio,
   readableText,
+  readableOn,
+  deriveAccent,
   lighten,
   darken,
   mix,
@@ -306,5 +308,149 @@ describe('relativeLuminance / contrastRatio / readableText (WCAG)', () => {
     assert.equal(readableText('#000000'), '#ffffff');
     assert.equal(readableText('#ffffff'), '#000000');
     assert.equal(readableText('#635bff', '#fff', '#111'), '#fff');
+  });
+});
+
+// The JournalGrid presets' surfaces (page, card, card-2) per mode.
+const PRESETS = {
+  paper: { light: ['#fdfdfd', '#f6f6f6', '#eeeeee'], dark: ['#1d1d1f', '#29292a', '#323234'] },
+  journal: { light: ['#faf8f4', '#f3efe7', '#ebe5d9'], dark: ['#16130f', '#1f1b16', '#29241d'] },
+  ink: { light: ['#ffffff', '#ffffff', '#f5f5f5'], dark: ['#0a0a0a', '#111111', '#1a1a1a'] },
+  pulse: { light: ['#ffffff', '#f6f6f6', '#ececec'], dark: ['#1f1f1f', '#262626', '#303030'] },
+  soft: { light: ['#f7f7f8', '#ffffff', '#eeeef0'], dark: ['#1c1c1e', '#252527', '#2f2f32'] },
+};
+
+const ACCENTS = {
+  yellow: '#ffd400',
+  navy: '#1e3a8a',
+  blue: '#0039d5',
+  red: '#9b1c1c',
+  green: '#22c55e',
+  pink: '#ec4899',
+  white: '#ffffff',
+  black: '#000000',
+};
+
+const passesAll = (hex, surfaces, ratio) => surfaces.every((s) => contrastRatio(hex, s) >= ratio);
+
+/** The step (of 256) at which `shade` sits between `color` and `toward`. */
+const stepOf = (color, toward, shade) => {
+  for (let i = 0; i <= 256; i++) if (mix(color, toward, i / 256) === shade) return i;
+  return -1;
+};
+
+describe('readableOn', () => {
+  it('returns the color itself when it already clears the ratio', () => {
+    assert.equal(readableOn('#0039d5', ['#fdfdfd', '#eeeeee']), '#0039d5');
+    assert.equal(readableOn('#ffd400', ['#1d1d1f'], { toward: 'white' }), '#ffd400');
+  });
+
+  it('darkens a yellow a long way for a light page', () => {
+    const shade = readableOn('#ffd400', PRESETS.paper.light, { toward: 'black' });
+    assert.equal(shade, '#786300');
+    assert.ok(passesAll(shade, PRESETS.paper.light, 5));
+    assert.ok(stepOf('#ffd400', '#000000', shade) / 256 > 0.4);
+  });
+
+  it('lightens a navy for a dark page', () => {
+    const shade = readableOn('#1e3a8a', PRESETS.paper.dark, { toward: 'white' });
+    assert.ok(passesAll(shade, PRESETS.paper.dark, 5));
+    assert.ok(relativeLuminance(shade) > relativeLuminance('#1e3a8a'));
+  });
+
+  it('returns the least-shifted shade: every step before it fails', () => {
+    for (const [name, accent] of Object.entries(ACCENTS)) {
+      for (const [mode, toward] of [['light', '#000000'], ['dark', '#ffffff']]) {
+        const surfaces = PRESETS.paper[mode];
+        const shade = readableOn(accent, surfaces, { toward });
+        const step = stepOf(accent, toward, shade);
+        assert.ok(step >= 0, `${name}/${mode}: ${shade} is on the line to ${toward}`);
+        for (let i = 0; i < step; i++) {
+          assert.ok(!passesAll(mix(accent, toward, i / 256), surfaces, 5), `${name}/${mode}: step ${i} already passes`);
+        }
+      }
+    }
+  });
+
+  it('defaults toward to whichever of black and white reads on the first surface', () => {
+    assert.equal(readableOn('#ffd400', ['#ffffff']), readableOn('#ffd400', ['#ffffff'], { toward: 'black' }));
+    assert.equal(readableOn('#1e3a8a', ['#111111']), readableOn('#1e3a8a', ['#111111'], { toward: 'white' }));
+  });
+
+  it('shifts toward a custom hex color', () => {
+    const shade = readableOn('#ffd400', ['#ffffff'], { toward: '#1e3a8a' });
+    assert.ok(contrastRatio(shade, '#ffffff') >= 5);
+    assert.ok(stepOf('#ffd400', '#1e3a8a', shade) > 0);
+  });
+
+  it('honours the ratio: a higher bar shifts further', () => {
+    const aa = readableOn('#ffd400', ['#ffffff'], { ratio: 4.5 });
+    const five = readableOn('#ffd400', ['#ffffff']);
+    const aaa = readableOn('#ffd400', ['#ffffff'], { ratio: 7 });
+    assert.ok(contrastRatio(aa, '#ffffff') >= 4.5);
+    assert.ok(contrastRatio(aaa, '#ffffff') >= 7);
+    assert.ok(relativeLuminance(aa) > relativeLuminance(five));
+    assert.ok(relativeLuminance(five) > relativeLuminance(aaa));
+  });
+
+  it('returns toward itself when no shade can reach the ratio', () => {
+    assert.equal(readableOn('#ff0000', ['#777777'], { toward: 'black' }), '#000000');
+    assert.equal(readableOn('#ff0000', ['#777777'], { toward: 'white' }), '#ffffff');
+    assert.ok(contrastRatio('#000000', '#777777') < 5);
+  });
+
+  it('accepts 3-digit, uppercase and bare hex, and returns lowercase #rrggbb', () => {
+    const shade = readableOn('#ffd400', ['#ffffff']);
+    assert.equal(readableOn('#FFD400', ['#FFF']), shade);
+    assert.equal(readableOn('ffd400', ['fff']), shade);
+    assert.equal(readableOn('#F00', ['#fff']), readableOn('#ff0000', ['#ffffff']));
+    assert.equal(readableOn('#00F', ['#fff']), '#0000ff');
+  });
+
+  it('returns the color unchanged (normalised) with no surfaces', () => {
+    assert.equal(readableOn('#FFD400', []), '#ffd400');
+  });
+});
+
+describe('deriveAccent', () => {
+  it('meets the ratio in both modes for every preset and accent', () => {
+    for (const [preset, surfaces] of Object.entries(PRESETS)) {
+      for (const [name, accent] of Object.entries(ACCENTS)) {
+        const d = deriveAccent(accent, surfaces);
+        const where = `${preset}/${name}`;
+        assert.equal(d.accent, accent, where);
+        for (const s of surfaces.light) assert.ok(contrastRatio(d.accentText, s) >= 5, `${where}: ${d.accentText} on ${s}`);
+        for (const s of surfaces.dark) assert.ok(contrastRatio(d.accentTextDark, s) >= 5, `${where}: ${d.accentTextDark} on ${s}`);
+        assert.equal(d.onAccent, readableText(accent), where);
+      }
+    }
+  });
+
+  it('darkens a yellow for light mode and keeps it for dark', () => {
+    assert.deepEqual(deriveAccent('#FFD400', PRESETS.paper), {
+      accent: '#ffd400',
+      accentText: '#786300',
+      accentTextDark: '#ffd400',
+      onAccent: '#000000',
+    });
+  });
+
+  it('lightens a navy for dark mode and keeps it for light', () => {
+    const d = deriveAccent('#1e3a8a', PRESETS.ink);
+    assert.equal(d.accentText, '#1e3a8a');
+    assert.notEqual(d.accentTextDark, '#1e3a8a');
+    assert.ok(relativeLuminance(d.accentTextDark) > relativeLuminance('#1e3a8a'));
+    assert.equal(d.onAccent, '#ffffff');
+  });
+
+  it('honours a custom ratio', () => {
+    const d = deriveAccent('#ffd400', { ...PRESETS.paper, ratio: 7 });
+    for (const s of PRESETS.paper.light) assert.ok(contrastRatio(d.accentText, s) >= 7);
+    for (const s of PRESETS.paper.dark) assert.ok(contrastRatio(d.accentTextDark, s) >= 7);
+  });
+
+  it('falls back to a white page and a black page with no surfaces', () => {
+    assert.deepEqual(deriveAccent('#ffd400'), deriveAccent('#ffd400', { light: ['#ffffff'], dark: ['#000000'] }));
+    assert.deepEqual(deriveAccent('#ffd400', { light: [], dark: [] }), deriveAccent('#ffd400'));
   });
 });

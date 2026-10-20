@@ -5,6 +5,27 @@ All notable changes to `@arraypress/color-utils` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-10-21
+
+### Added
+
+- **`readableOn(color, surfaces, { toward?, ratio? })`** — the
+  least-shifted shade of a color (mixed toward black, white or any hex)
+  that clears a WCAG ratio on every surface; the color itself if it
+  already does. Default ratio 5, for headroom on tinted surfaces. Checks
+  each candidate as the rounded hex it returns, so the result really
+  passes. Returns `toward` when no shade can reach the ratio.
+- **`deriveAccent(accent, { light, dark, ratio? })`** — from one accent,
+  the light-mode text shade (darkened for the light surfaces), the
+  dark-mode one (lightened for the dark surfaces) and the black-or-white
+  text to put on the accent. Lifted from JournalGrid's customizer.
+
+### Fixed
+
+- The README now documents `relativeLuminance`, `contrastRatio` and
+  `readableText` (added in 1.2.0), and no longer calls `luminance()`
+  WCAG's formula.
+
 ## [1.2.0] — 2026-10-12
 
 ### Added

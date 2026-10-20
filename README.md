@@ -37,7 +37,7 @@ rgbToHex(300, -10, 128) // '#ff0080' (clamped)
 
 ### `luminance(hex)`
 
-Calculate perceived brightness (0-255) using the WCAG formula.
+Calculate perceived brightness (0-255), the YIQ formula. For WCAG's relative luminance, see `relativeLuminance()`.
 
 ```js
 import { luminance } from '@arraypress/color-utils';
@@ -68,6 +68,76 @@ import { contrastText } from '@arraypress/color-utils';
 contrastText('#ffffff') // '#000000' (dark text on light bg)
 contrastText('#000000') // '#ffffff' (light text on dark bg)
 contrastText('#ff0000', '#eeeeee', '#111111') // custom colors
+```
+
+### `relativeLuminance(hex)` / `contrastRatio(a, b)` / `readableText(hex, lightColor?, darkColor?)`
+
+WCAG 2 contrast. `relativeLuminance` is 0 (black) to 1 (white); `contrastRatio` is 1 to 21, either order (text needs 4.5 for AA, 3 when large); `readableText` picks whichever of two text colors contrasts more with a background.
+
+```js
+import { contrastRatio, readableText } from '@arraypress/color-utils';
+
+contrastRatio('#000000', '#ffffff') // 21
+contrastRatio('#777777', '#ffffff') // ~4.48
+readableText('#635bff')             // '#ffffff'
+readableText('#ffd60a')             // '#000000'
+```
+
+### `readableOn(color, surfaces, options?)`
+
+The least-shifted shade of `color` that clears a contrast ratio on **every** surface: the color mixed toward black, white or any hex, one fine step at a time, until it passes on all of them. Returns the color itself if it already does.
+
+```js
+import { readableOn } from '@arraypress/color-utils';
+
+readableOn('#ffd400', ['#fdfdfd', '#eeeeee'])                // '#786300'
+readableOn('#0039d5', ['#fdfdfd'])                           // '#0039d5' (already passes)
+readableOn('#1e3a8a', ['#1d1d1f'], { toward: 'white' })      // '#7b8cba'
+readableOn('#ffd400', ['#ffffff'], { ratio: 7 })             // AAA
+```
+
+| Option | Type | Default | |
+|---|---|---|---|
+| `toward` | `'black' \| 'white' \| string` | black or white, whichever reads on the first surface | Where to shift. |
+| `ratio` | `number` | `5` | The WCAG ratio to clear. |
+
+Every candidate is checked as the hex it's returned as, so the result meets the ratio after rounding. **If no shade can reach the ratio** (a mid-grey surface, say), it returns `toward` itself, which still falls short; check with `contrastRatio()` if your surfaces aren't known in advance. Output is always lowercase `#rrggbb`.
+
+### `deriveAccent(accent, { light, dark, ratio? })`
+
+Everything a theme needs from one accent color, for a site with light and dark modes:
+
+- `accentText` — the accent darkened until it clears the ratio on every light surface (for links, prices, accent text on a light page).
+- `accentTextDark` — lightened until it clears the ratio on every dark surface.
+- `onAccent` — black or white, whichever contrasts more with the accent fill (button labels).
+
+```js
+import { deriveAccent } from '@arraypress/color-utils';
+
+deriveAccent('#FFD400', {
+  light: ['#fdfdfd', '#f6f6f6', '#eeeeee'], // page, card, card-2
+  dark: ['#1d1d1f', '#29292a', '#323234'],
+});
+// { accent: '#ffd400', accentText: '#786300', accentTextDark: '#ffd400', onAccent: '#000000' }
+```
+
+## Deriving accents
+
+A theme buyer picks one accent. Used as a fill it's fine; used as **text** a bright accent fails on a light page (yellow on white is ~1.4:1), and a dark one fails on a dark page. `deriveAccent()` works out the text shades so the buyer only sets one color.
+
+- **Pass each mode's tightest surfaces, not just the page.** A card or hover fill is often closer to the text color than the page is, so it's the one that fails.
+- **The default ratio is 5, not 4.5.** Components tint surfaces at runtime (a callout mixed 8% from the card), and a shade that only just clears 4.5 on the declared surfaces falls under it there. 5:1 leaves headroom.
+- **The shift is the smallest that works**, so the text shade stays as close to the brand color as contrast allows. An accent that already passes is returned unchanged.
+- **`onAccent` isn't held to the ratio.** A bright mid-tone can't give 5:1 with either black or white; it gets the better of the two.
+- With no surfaces for a mode, it assumes a white (light) or black (dark) page.
+
+In a customizer, write the results into the mode's tokens:
+
+```js
+const d = deriveAccent(picked, { light: ['#fdfdfd', '#f6f6f6'], dark: ['#1d1d1f', '#29292a'] });
+style.textContent =
+  `:root[data-theme="light"]{--color-accent:${d.accent};--color-accent-text:${d.accentText};--color-on-accent:${d.onAccent}}` +
+  `:root[data-theme="dark"]{--color-accent:${d.accent};--color-accent-text:${d.accentTextDark};--color-on-accent:${d.onAccent}}`;
 ```
 
 ### `lighten(hex, amount?)` / `darken(hex, amount?)`

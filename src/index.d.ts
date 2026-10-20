@@ -26,6 +26,43 @@ export function contrastRatio(a: string, b: string): number;
 /** The more readable of two text colors (default white, black) on a background, by WCAG contrast ratio. */
 export function readableText(hex: string, lightColor?: string, darkColor?: string): string;
 
+export interface ReadableOnOptions {
+  /** Where to shift the color: 'black', 'white' or a hex color. Default: whichever of black/white reads better on the first surface. */
+  toward?: 'black' | 'white' | (string & {});
+  /** The WCAG contrast ratio to clear. Default `5` (headroom above AA's 4.5). */
+  ratio?: number;
+}
+
+/**
+ * The least-shifted shade of `color` (mixed toward `toward`) that clears `ratio`
+ * on every surface; the color itself if it already does. Returns `toward` when
+ * no shade can reach the ratio. Always lowercase `#rrggbb`.
+ */
+export function readableOn(color: string, surfaces: string[], options?: ReadableOnOptions): string;
+
+export interface AccentSurfaces {
+  /** The light mode's backgrounds: the page and its tightest surfaces. Empty: white. */
+  light?: string[];
+  /** The dark mode's backgrounds. Empty: black. */
+  dark?: string[];
+  /** The WCAG contrast ratio the text shades clear. Default `5`. */
+  ratio?: number;
+}
+
+export interface DerivedAccent {
+  /** The accent fill, normalised. */
+  accent: string;
+  /** Accent as text in light mode: darkened until it clears the ratio on the light surfaces. */
+  accentText: string;
+  /** Accent as text in dark mode: lightened until it clears the ratio on the dark surfaces. */
+  accentTextDark: string;
+  /** Black or white, whichever contrasts more with the accent fill. */
+  onAccent: string;
+}
+
+/** Derive the light/dark accent text shades and the on-accent text color from one accent. */
+export function deriveAccent(accent: string, surfaces?: AccentSurfaces): DerivedAccent;
+
 /** Returns true if the color is light (brightness > threshold). */
 export function isLight(hex: string, threshold?: number): boolean;
 

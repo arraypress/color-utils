@@ -165,6 +165,109 @@ export function readableText(hex, lightColor = '#ffffff', darkColor = '#000000')
 }
 
 /**
+ * How many steps {@link readableOn} takes between the color and its
+ * target. 256 is finer than the 0-255 channels, so no reachable shade is
+ * skipped, and cheap: a few hundred contrast checks.
+ */
+const READABLE_STEPS = 256;
+
+/** Any accepted hex spelling ('F00', '#FF0000') as lowercase `#rrggbb`. */
+function _normalizeHex(hex) {
+  const { r, g, b } = hexToRgb(hex);
+  return rgbToHex(r, g, b);
+}
+
+/**
+ * The least-shifted shade of a color that clears a contrast ratio on every
+ * given surface: the color mixed toward `toward` one fine step at a time
+ * until it passes on all of them. Returns the color itself when it already
+ * does.
+ *
+ * Every candidate is checked as the hex it will be returned as, so the
+ * result really meets the ratio after rounding. The search walks in steps
+ * rather than bisecting because contrast isn't monotonic: a shade lighter
+ * than a light surface loses contrast as it darkens, then gains it.
+ *
+ * The default ratio is 5, not WCAG AA's 4.5, so text keeps clearing AA on
+ * surfaces tinted from these ones (a callout mixed from the card, say).
+ *
+ * If no shade reaches the ratio, it returns `toward` itself (as `#rrggbb`):
+ * the furthest it can go, which still falls short. Pure black or white only
+ * fails 5:1 on a mid-tone surface; check with {@link contrastRatio} when the
+ * surfaces aren't known in advance.
+ *
+ * @param {string} color - The hex color to adjust (3 or 6 digit, any case, with or without '#').
+ * @param {string[]} surfaces - Hex backgrounds it must read on. Empty: the color is returned as is.
+ * @param {Object} [options]
+ * @param {'black'|'white'|string} [options.toward] - Where to shift: 'black', 'white' or a hex color.
+ *   Defaults to whichever of black and white reads better on the first surface.
+ * @param {number} [options.ratio=5] - The WCAG contrast ratio to clear.
+ * @returns {string} Lowercase `#rrggbb`.
+ *
+ * @example
+ * readableOn('#ffd400', ['#fdfdfd', '#eeeeee']);  // '#786300' (darkened a long way)
+ * readableOn('#0039d5', ['#fdfdfd']);             // '#0039d5' (already passes)
+ * readableOn('#1e3a8a', ['#1d1d1f'], { toward: 'white' });  // '#7b8cba'
+ */
+export function readableOn(color, surfaces, options = {}) {
+  const ratio = options.ratio ?? 5;
+  const target = options.toward === 'black' ? '#000000'
+    : options.toward === 'white' ? '#ffffff'
+    : options.toward ?? (surfaces.length ? readableText(surfaces[0]) : '#000000');
+  const passes = (hex) => surfaces.every((s) => contrastRatio(hex, s) >= ratio);
+
+  for (let i = 0; i <= READABLE_STEPS; i++) {
+    const shade = mix(color, target, i / READABLE_STEPS);
+    if (passes(shade)) return shade;
+  }
+  return _normalizeHex(target);
+}
+
+/**
+ * Everything a theme needs from one accent color: the accent text shade for
+ * each mode and the text color to put on the accent.
+ *
+ * - `accentText` — the accent darkened ({@link readableOn} toward black)
+ *   until it clears the ratio on every light surface.
+ * - `accentTextDark` — lightened toward white until it clears the ratio on
+ *   every dark surface.
+ * - `onAccent` — black or white, whichever contrasts more with the accent
+ *   fill. ({@link readableText}; it isn't held to the ratio, since a bright
+ *   mid-tone can't give 5:1 with either.)
+ *
+ * Pass a mode's page AND its tightest surfaces (cards, hover fills): the
+ * card is often closer to the text than the page is. With no surfaces, a
+ * mode falls back to plain white (light) or black (dark).
+ *
+ * If a mode's surfaces are too mid-toned for any shade to reach the ratio,
+ * its text shade is pure black or white; see {@link readableOn}.
+ *
+ * @param {string} accent - The accent hex color (3 or 6 digit, any case, with or without '#').
+ * @param {Object} surfaces
+ * @param {string[]} surfaces.light - The light mode's backgrounds (page, cards).
+ * @param {string[]} surfaces.dark - The dark mode's backgrounds.
+ * @param {number} [surfaces.ratio=5] - The WCAG contrast ratio the text shades clear.
+ * @returns {{ accent: string, accentText: string, accentTextDark: string, onAccent: string }}
+ *   All lowercase `#rrggbb`.
+ *
+ * @example
+ * deriveAccent('#FFD400', {
+ *   light: ['#fdfdfd', '#f6f6f6', '#eeeeee'],
+ *   dark: ['#1d1d1f', '#29292a', '#323234'],
+ * });
+ * // { accent: '#ffd400', accentText: '#786300', accentTextDark: '#ffd400', onAccent: '#000000' }
+ */
+export function deriveAccent(accent, { light = [], dark = [], ratio = 5 } = {}) {
+  const fill = _normalizeHex(accent);
+  return {
+    accent: fill,
+    accentText: readableOn(fill, light.length ? light : ['#ffffff'], { toward: 'black', ratio }),
+    accentTextDark: readableOn(fill, dark.length ? dark : ['#000000'], { toward: 'white', ratio }),
+    onAccent: readableText(fill),
+  };
+}
+
+/**
  * Lighten a hex color by adding a fixed amount to each RGB channel.
  *
  * @param {string} hex - Hex color string to lighten.
