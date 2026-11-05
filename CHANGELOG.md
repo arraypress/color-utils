@@ -5,6 +5,18 @@ All notable changes to `@arraypress/color-utils` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] — 2026-11-05
+
+### Added
+
+- **OKLCH and OKLab:** `toOklch(hex)`, `fromOklch({ l, c, h })` (out-of-gamut colours brought in by reducing chroma, found by bisection, so lightness and hue hold), `formatOklch(hex)` for CSS, `mixOklab(a, b, t)` and `mixOklch(a, b, t)` (hue the short way; a grey takes the other colour's hue).
+- **`scale(hex, { anchor, lightness })`:** a 50–950 tonal scale stepped evenly in OKLCH lightness (`SCALE_LIGHTNESS`), the colour's hue kept, its chroma full beside it and easing toward white and black. The colour itself sits at its nearest step (`scaleStep(hex)`) unless `anchor: false`.
+- **`wcagLevel(ratio)`, `pickReadable(candidates, ground, ratio)` and `WCAG`:** the level a ratio clears, and the first colour that reads on a ground.
+
+### Changed
+
+- `npm test` runs every file in `tests/`.
+
 ## [1.3.0] — 2026-10-21
 
 ### Added

@@ -2,6 +2,10 @@
  * @arraypress/color-utils — TypeScript definitions.
  */
 
+export * from './oklch.js';
+export * from './scale.js';
+export * from './wcag.js';
+
 export interface RGB {
   r: number;
   g: number;

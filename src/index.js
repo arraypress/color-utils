@@ -1,3 +1,7 @@
+export { toOklch, fromOklch, formatOklch, mixOklab, mixOklch } from './oklch.js';
+export { scale, scaleStep, SCALE_LIGHTNESS } from './scale.js';
+export { WCAG, wcagLevel, pickReadable } from './wcag.js';
+
 /**
  * Parse a hex color string to its RGB components.
  * Supports both 3-character shorthand (#f00) and 6-character (#ff0000) formats.

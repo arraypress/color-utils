@@ -185,6 +185,40 @@ withAlpha('#ff0000', 0.5) // 'rgba(255, 0, 0, 0.5)'
 withAlpha('#000', 0.75)   // 'rgba(0, 0, 0, 0.75)'
 ```
 
+### OKLCH: `toOklch(hex)`, `fromOklch({ l, c, h })`, `formatOklch(hex)`
+
+Colour in OKLCH (lightness 0–1, chroma, hue in degrees), where a lightness is the same lightness for every hue. `fromOklch` brings an out-of-gamut colour back by reducing chroma, keeping lightness and hue.
+
+```js
+import { toOklch, fromOklch, formatOklch } from '@arraypress/color-utils';
+
+toOklch('#2563eb')                    // { l: 0.546, c: 0.215, h: 262.9 }
+fromOklch({ l: 0.7, c: 0.12, h: 30 }) // a soft coral
+formatOklch('#2563eb')                // 'oklch(54.6% 0.215 262.9)'
+```
+
+### `mixOklab(a, b, t?)` / `mixOklch(a, b, t?)`
+
+Mix perceptually: OKLab for even blends, OKLCH (hue the short way) to keep far-apart hues vivid.
+
+### `scale(hex, { anchor?, lightness? })` / `scaleStep(hex)`
+
+A 50–950 tonal scale from one colour, stepped evenly in OKLCH lightness (`SCALE_LIGHTNESS`), its hue kept and its chroma eased toward white and black. The colour itself sits at its nearest step unless `anchor: false`.
+
+```js
+import { scale } from '@arraypress/color-utils';
+
+scale('#2563eb') // { 50: '#f3f7ff', 100: '#e1ecff', …, 600: '#2563eb', …, 950: '#000e53' }
+```
+
+### `wcagLevel(ratio)` / `pickReadable(candidates, ground, ratio?)` / `WCAG`
+
+The WCAG level a ratio clears (`'AAA'`, `'AA'`, `'AA Large'`, `'Fail'`), and the first of several colours that clears a ratio on a ground (the most contrasting when none does).
+
+```js
+pickReadable(Object.values(scale('#ffd400')).slice(5), '#ffffff') // the first step dark enough for AA text on white
+```
+
 ### `generateInitialsAvatar(initials, options?)`
 
 Build an inline `data:image/svg+xml,…` URL for a monogram avatar. Drop straight into `<img src=…>` as the placeholder when no artwork is available — slots into the same `object-fit: cover` styling as real images.
