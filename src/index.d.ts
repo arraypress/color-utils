@@ -5,6 +5,7 @@
 export * from './oklch.js';
 export * from './scale.js';
 export * from './wcag.js';
+export * from './names.js';
 
 export interface RGB {
   r: number;

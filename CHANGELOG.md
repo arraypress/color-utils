@@ -5,6 +5,12 @@ All notable changes to `@arraypress/color-utils` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] — 2026-11-06
+
+### Added
+
+- **`colorName(hex)`** and **`nearestColorNames(hex, count)`**: the nearest CSS named colour in words (`'Royal Blue'`, `'Tomato'`), British spelling, aliases dropped, measured in OKLab with hue and chroma counted double so near-blacks and near-whites get neutral names. `COLOR_NAMES` is the list. For palette swatches (`@logomarks/brand-kit`'s swatch cards) and alt text.
+
 ## [1.4.0] — 2026-11-05
 
 ### Added

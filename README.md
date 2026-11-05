@@ -1,6 +1,6 @@
 # @arraypress/color-utils
 
-Color utility functions -- luminance calculation, contrast detection, hex manipulation, WCAG accessibility helpers. Zero dependencies.
+Color utility functions -- luminance calculation, contrast detection, hex manipulation, WCAG accessibility helpers, OKLCH and colour names. Zero dependencies.
 
 Works in Node.js, Cloudflare Workers, Deno, Bun, and browsers.
 
@@ -217,6 +217,16 @@ The WCAG level a ratio clears (`'AAA'`, `'AA'`, `'AA Large'`, `'Fail'`), and the
 
 ```js
 pickReadable(Object.values(scale('#ffd400')).slice(5), '#ffffff') // the first step dark enough for AA text on white
+```
+
+### `colorName(hex)` / `nearestColorNames(hex, count?)` / `COLOR_NAMES`
+
+The nearest CSS named colour, in words (British spelling, aliases dropped), measured in OKLab with hue and chroma counted double, so a near-black is Black rather than the darkest blue. For swatch labels and alt text.
+
+```js
+colorName('#2563eb')             // 'Royal Blue'
+colorName('#ff5c3a')             // 'Tomato'
+nearestColorNames('#0f766e', 2)  // [{ name: 'Teal', hex: '#008080', distance: … }, …]
 ```
 
 ### `generateInitialsAvatar(initials, options?)`
