@@ -1,6 +1,14 @@
 export { toOklch, fromOklch, formatOklch, mixOklab, mixOklch } from './oklch.js';
 export { scale, scaleStep, SCALE_LIGHTNESS } from './scale.js';
-export { WCAG, wcagLevel, pickReadable } from './wcag.js';
+export { WCAG, wcagLevel, pickReadable, isLargeText, requiredRatio, textContrast, nearestReadable } from './wcag.js';
+export { TRANSPARENT, blendOver, rgbaToHex, rgbaToOklab, deltaEOK } from './rgba.js';
+export { COLOR_FORMATS, parseColor, formatColor, cssColorsIn } from './css.js';
+export { apcaContrast } from './apca.js';
+export { LIGHT_CANVAS, DARK_CANVAS, canvasColor, paintParent, paintedColors } from './dom.js';
+export {
+  RGB_SPACES, srgbToLinear, linearToSrgb, rgbSpaceToLinear, linearToRgbSpace, labToLinear, linearToLab,
+  linearToOklab, oklabToLinear, toPolar, fromPolar, hslToSrgb, srgbToHsl, hwbToSrgb, srgbToHwb,
+} from './spaces.js';
 export { COLOR_NAMES, colorName, nearestColorNames } from './names.js';
 
 /**

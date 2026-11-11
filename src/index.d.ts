@@ -6,6 +6,11 @@ export * from './oklch.js';
 export * from './scale.js';
 export * from './wcag.js';
 export * from './names.js';
+export * from './rgba.js';
+export * from './css.js';
+export * from './apca.js';
+export * from './dom.js';
+export * from './spaces.js';
 
 export interface RGB {
   r: number;

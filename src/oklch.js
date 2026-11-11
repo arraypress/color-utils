@@ -11,12 +11,7 @@
  */
 
 import { hexToRgb, rgbToHex } from './index.js';
-
-/** @param {number} c - sRGB channel, 0-1. @returns {number} Linear channel. */
-const toLinear = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
-
-/** @param {number} c - Linear channel. @returns {number} sRGB channel, 0-1. */
-const toGamma = (c) => (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055);
+import { fromPolar, linearToOklab, linearToSrgb, oklabToLinear, srgbToLinear, toPolar } from './spaces.js';
 
 /** How far outside 0-1 a linear channel may sit and still count as in gamut. */
 const GAMUT_EPSILON = 0.0005;
@@ -29,42 +24,14 @@ const GAMUT_EPSILON = 0.0005;
  */
 function toOklab(hex) {
   const { r, g, b } = hexToRgb(hex);
-  const [lr, lg, lb] = [r, g, b].map((v) => toLinear(v / 255));
-  const l = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb);
-  const m = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb);
-  const s = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb);
-  return [
-    0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
-    1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
-    0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s,
-  ];
-}
-
-/**
- * OKLab to linear sRGB, unclamped (outside 0-1 when out of gamut).
- *
- * @param {number} L @param {number} A @param {number} B
- * @returns {[number, number, number]} Linear red, green, blue.
- */
-function oklabToLinear(L, A, B) {
-  const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3;
-  const m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3;
-  const s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3;
-  return [
-    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
-    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
-    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
-  ];
+  return linearToOklab([srgbToLinear(r / 255), srgbToLinear(g / 255), srgbToLinear(b / 255)]);
 }
 
 /** @param {number[]} lin - Linear channels. @returns {boolean} Whether they're all displayable. */
 const inGamut = (lin) => lin.every((v) => v >= -GAMUT_EPSILON && v <= 1 + GAMUT_EPSILON);
 
 /** @param {number[]} lin - Linear channels. @returns {string} Lowercase `#rrggbb`. */
-const linearToHex = (lin) => rgbToHex(...lin.map((v) => toGamma(Math.max(0, Math.min(1, v))) * 255));
-
-/** OKLCH lightness, chroma and hue as OKLab a and b. */
-const lab = (/** @type {number} */ c, /** @type {number} */ h) => [c * Math.cos((h * Math.PI) / 180), c * Math.sin((h * Math.PI) / 180)];
+const linearToHex = (lin) => rgbToHex(...lin.map((v) => linearToSrgb(Math.max(0, Math.min(1, v))) * 255));
 
 /**
  * A hex color in OKLCH.
@@ -76,9 +43,8 @@ const lab = (/** @type {number} */ c, /** @type {number} */ h) => [c * Math.cos(
  * toOklch('#2563eb'); // { l: 0.546, c: 0.215, h: 262.9 } (rounded)
  */
 export function toOklch(hex) {
-  const [l, a, b] = toOklab(hex);
-  const h = (Math.atan2(b, a) * 180) / Math.PI;
-  return { l, c: Math.hypot(a, b), h: h < 0 ? h + 360 : h };
+  const [l, c, h] = toPolar(toOklab(hex));
+  return { l, c, h };
 }
 
 /**
@@ -94,7 +60,7 @@ export function toOklch(hex) {
  */
 export function fromOklch({ l, c, h }) {
   const L = Math.max(0, Math.min(1, l));
-  const at = (/** @type {number} */ chroma) => oklabToLinear(L, ...lab(chroma, h));
+  const at = (/** @type {number} */ chroma) => oklabToLinear(fromPolar([L, chroma, h]));
   if (inGamut(at(Math.max(0, c)))) return linearToHex(at(Math.max(0, c)));
   let lo = 0, hi = c;
   for (let i = 0; i < 24; i++) {
@@ -133,7 +99,7 @@ export function formatOklch(hex) {
  */
 export function mixOklab(a, b, t = 0.5) {
   const p = toOklab(a), q = toOklab(b);
-  return linearToHex(oklabToLinear(p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t));
+  return linearToHex(oklabToLinear([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t]));
 }
 
 /**

@@ -1,6 +1,6 @@
 # @arraypress/color-utils
 
-Color utility functions -- luminance calculation, contrast detection, hex manipulation, WCAG accessibility helpers, OKLCH and colour names. Zero dependencies.
+Color utility functions -- luminance calculation, contrast detection (WCAG 2 and APCA), hex manipulation, every CSS colour read and written, OKLCH and OKLab, what a page's text really shows in, and colour names. Zero dependencies.
 
 Works in Node.js, Cloudflare Workers, Deno, Bun, and browsers.
 
@@ -218,6 +218,48 @@ The WCAG level a ratio clears (`'AAA'`, `'AA'`, `'AA Large'`, `'Fail'`), and the
 ```js
 pickReadable(Object.values(scale('#ffd400')).slice(5), '#ffffff') // the first step dark enough for AA text on white
 ```
+
+### CSS colours: `parseColor(text)` / `formatColor(rgba, format)` / `COLOR_FORMATS`
+
+Every absolute CSS colour read as sRGB the way Chrome draws it on an sRGB screen (out-of-gamut channels clipped): hex (3, 4, 6, 8 digits), named colours, `transparent`, `rgb()`/`rgba()`, `hsl()`/`hsla()`, `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()` and `color()` in `srgb`, `srgb-linear`, `display-p3`, `a98-rgb`, `prophoto-rgb`, `rec2020`, `xyz`, `xyz-d50`, `xyz-d65`; `none` channels; legacy and modern syntax. Computed styles only ever come in these forms, so `parseColor(getComputedStyle(el).color)` always gives a colour. Colours with alpha are `{ r, g, b, a }`: channels 0-255 (fractions kept), alpha 0-1.
+
+```js
+import { parseColor, formatColor } from '@arraypress/color-utils';
+
+parseColor('oklch(0.7 0.15 200)');   // { r: ~0, g: ~185, b: ~195, a: 1 }
+parseColor('color(display-p3 1 0 0)'); // { r: 255, g: 0, b: 0, a: 1 } (clipped, as drawn)
+parseColor('currentcolor');          // null
+formatColor({ r: 26, g: 115, b: 232, a: 0.5 }, 'oklch'); // 'oklch(57.37% 0.1946 257.86 / 0.5)'
+```
+
+Formats: `hex`, `rgb`, `hsl`, `hwb`, `lab`, `lch`, `oklab`, `oklch`; each reads back as the same 8-bit colour.
+
+### `blendOver(top, bottom)` / `rgbaToHex(rgba)` / `deltaEOK(a, b)`
+
+A translucent colour laid over another; hex with alpha (`#rrggbbaa` when translucent); how different two colours look in OKLab (about 0.02 is just noticeable; black to white is 1).
+
+### Contrast: `textContrast(text, background)` / `apcaContrast(text, background)` / `isLargeText(px, weight)` / `requiredRatio(level, large)` / `nearestReadable(text, background, ratio?)`
+
+`textContrast` gives the WCAG 2 ratio (unrounded: 4.499 fails 4.5) and APCA's Lc for text (translucent text laid on its background first). `apcaContrast` is APCA-W3 0.0.98G-4g (`#888` on white is 63.06; light on dark is negative). `nearestReadable` moves a text colour's OKLCH lightness as little as it takes to clear a ratio, hue kept; null when no lightness can.
+
+```js
+nearestReadable('#999999', '#ffffff'); // '#767676'
+isLargeText(18.67, 700);               // true (14pt bold)
+requiredRatio('AAA', false);           // 7
+```
+
+### What a page's text shows in: `paintedColors(element, { style?, canvas? })` / `canvasColor(doc)` (browser)
+
+The text's colour (`-webkit-text-fill-color`) over its and its ancestors' backgrounds (through shadow roots and slots), laid from the page's canvas up as Chrome paints them, opacity groups included. `behind` is `'solid'`, `'gradient'` (a pair per gradient colour), or, when styles can't tell, `'image'` or `'effect'` (a filter, a blend mode, gradient-filled text). `canvasColor` is white, or Chrome's dark canvas (`rgb(18 18 18)`) when the page opts into dark.
+
+```js
+const { behind, pairs } = paintedColors(paragraph);
+const worst = Math.min(...pairs.map(({ text, background }) => textContrast(text, background).ratio));
+```
+
+### Colour spaces
+
+`RGB_SPACES`, `rgbSpaceToLinear`, `linearToRgbSpace`, `labToLinear`, `linearToLab`, `linearToOklab`, `oklabToLinear`, `toPolar`, `fromPolar`, `hslToSrgb`, `srgbToHsl`, `hwbToSrgb`, `srgbToHwb`, `srgbToLinear`, `linearToSrgb`: CSS Color 4's conversions, through linear sRGB, unclamped.
 
 ### `colorName(hex)` / `nearestColorNames(hex, count?)` / `COLOR_NAMES`
 

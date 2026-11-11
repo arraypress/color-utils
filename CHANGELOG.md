@@ -5,6 +5,20 @@ All notable changes to `@arraypress/color-utils` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] — 2026-11-12
+
+### Added
+
+- **CSS colours:** `parseColor(text)` reads every absolute CSS Color 4 colour (hex, named, `rgb()`, `hsl()`, `hwb()`, `lab()`, `lch()`, `oklab()`, `oklch()`, `color()` in all nine predefined spaces, `none`, either syntax) as `{ r, g, b, a }` sRGB, clipped as Chrome draws it (checked against Chrome's canvas for every space); `formatColor(rgba, format)` writes `hex`, `rgb`, `hsl`, `hwb`, `lab`, `lch`, `oklab` or `oklch` (`COLOR_FORMATS`), each reading back as the same 8-bit colour. For Better Colours (a palette and contrast checker) and Better Fonts (its card's colour).
+- **Colours with alpha:** `blendOver` (source-over), `rgbaToHex` (`#rrggbbaa` when translucent), `rgbaToOklab`, `deltaEOK` (how different two colours look), `TRANSPARENT`.
+- **Contrast:** `apcaContrast` (APCA-W3 0.0.98G-4g, its own reference values), `textContrast` (ratio unrounded and Lc, translucent text laid on first), `isLargeText`, `requiredRatio`, `nearestReadable` (OKLCH lightness moved the shorter way, hue kept).
+- **What text shows in** (`dom.js`, browser): `paintedColors(element)`, the text's and backgrounds' colours from computed styles up the tree with opacity groups, gradients as a pair per colour, images and effects said to be unknown; `canvasColor(doc)` (Chrome's dark canvas for dark pages), `paintParent`. Moved from Better Fonts' `content/describe.js` and made exact.
+- **Colour spaces** (`spaces.js`): the conversions behind it all, exported.
+
+### Changed
+
+- OKLCH's conversions share `spaces.js` (same results).
+
 ## [1.5.0] — 2026-11-06
 
 ### Added
