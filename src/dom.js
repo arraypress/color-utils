@@ -77,6 +77,25 @@ export function paintParent(element) {
   return root.host ?? null;
 }
 
+/** The largest background image (CSS px a side) taken for an icon in the box's padding, not a picture behind its text. */
+const ICON_PX = 32;
+
+/**
+ * Whether an element's background images are only icons: each drawn once (`no-repeat`), at most
+ * {@link ICON_PX} a side (a link's “external” arrow beside its text, a search field's magnifier).
+ *
+ * @param {StyleRead} style - Its computed style.
+ * @returns {boolean} They are.
+ */
+function iconsOnly(style) {
+  const repeats = (style.getPropertyValue('background-repeat') || 'repeat').split(',');
+  const sizes = (style.getPropertyValue('background-size') || 'auto').split(',');
+  return repeats.every((repeat) => repeat.trim() === 'no-repeat') && sizes.every((size) => {
+    const parts = size.trim().split(/\s+/);
+    return parts.some((part) => part.endsWith('px')) && parts.every((part) => part === 'auto' || (part.endsWith('px') && parseFloat(part) <= ICON_PX));
+  });
+}
+
 /**
  * What one element paints under its content.
  *
@@ -101,7 +120,7 @@ function layerOf(style) {
   return {
     color: boxless ? TRANSPARENT : parseColor(style.backgroundColor) ?? TRANSPARENT,
     stops: stops.some((stop) => stop.a > 0) ? stops : [],
-    image: !boxless && /\b(?:url|image-set|-webkit-image-set|cross-fade|element|paint)\(/.test(image),
+    image: !boxless && /\b(?:url|image-set|-webkit-image-set|cross-fade|element|paint)\(/.test(image) && !iconsOnly(style),
     opacity: Number(style.opacity ?? 1),
     effect: (style.filter ?? 'none') !== 'none' || (style.mixBlendMode ?? 'normal') !== 'normal',
   };

@@ -53,6 +53,12 @@ describe('paintedColors', () => {
     assert.deepEqual(pairs[0].text, { r: 117, g: 117, b: 117, a: 1 });
   });
 
+  it('an opacity group over a gradient: each gradient colour seen through the group once, never mixed with another', () => {
+    const hero = el({ backgroundImage: 'linear-gradient(rgb(0, 0, 0), rgb(255, 255, 255))' });
+    const glass = el({ opacity: '0.5' }, hero);
+    assert.deepEqual(painted(el({ color: 'rgb(255, 0, 0)' }, glass)).pairs, ['128 0 0 on 0 0 0', '255 128 128 on 255 255 255']);
+  });
+
   it('-webkit-text-fill-color is what’s drawn, when set', () => {
     assert.deepEqual(painted(el({ color: 'rgb(0, 0, 0)', '-webkit-text-fill-color': 'rgb(0, 0, 255)' })).pairs, ['0 0 255 on 255 255 255']);
   });
@@ -80,6 +86,13 @@ describe('paintedColors', () => {
     assert.equal(painted(el({}, card)).behind, 'solid');
     const glass = el({ backgroundColor: 'rgb(255, 255, 255)', opacity: '0.9' }, photo);
     assert.equal(painted(el({}, glass)).behind, 'image', 'the photo shows through a faded card');
+    const icon = { backgroundImage: 'url("arrow.svg")', 'background-repeat': 'no-repeat' };
+    assert.equal(painted(el({ ...icon, 'background-size': '12px' })).behind, 'solid', 'a link’s 12px arrow beside its text');
+    assert.equal(painted(el({ ...icon, 'background-size': '16px 16px' })).behind, 'solid');
+    assert.equal(painted(el({ ...icon, 'background-size': '64px 64px' })).behind, 'image', 'bigger than an icon');
+    assert.equal(painted(el({ ...icon, 'background-size': 'auto' })).behind, 'image', 'its own size, unknown');
+    assert.equal(painted(el({ ...icon, 'background-size': 'cover' })).behind, 'image');
+    assert.equal(painted(el({ backgroundImage: 'url("a.png")', 'background-repeat': 'repeat', 'background-size': '12px' })).behind, 'image', 'tiled, it fills the box');
     const tint = el({ backgroundColor: 'rgba(255, 255, 255, 0.8)' }, photo);
     assert.equal(painted(el({}, tint)).behind, 'image', 'and through a translucent one');
   });
