@@ -45,7 +45,7 @@ export const COLOR_FORMATS = Object.freeze(/** @type {const} */ (['hex', 'rgb', 
 /**
  * One channel as written: a number, a percentage, an angle, or `none`.
  *
- * @typedef {{value: number, unit: '' | '%' | 'deg'}} Token
+ * @typedef {{value: number, unit: '' | '%' | 'deg', none?: boolean}} Token
  */
 
 /** Angle units in degrees. */
@@ -58,8 +58,8 @@ const ANGLES = { deg: 1, rad: 180 / Math.PI, grad: 0.9, turn: 360 };
  * @returns {Token | null} It, or null when it isn't a channel.
  */
 function token(text) {
-  if (text === 'none') return { value: 0, unit: '' };
-  const match = /^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)(%|deg|rad|grad|turn)?$/.exec(text);
+  if (text === 'none') return { value: 0, unit: '', none: true };
+  const match = /^([+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?)(%|deg|rad|grad|turn)?$/.exec(text);
   if (!match) return null;
   const value = Number(match[1]);
   const unit = match[2];
@@ -79,24 +79,36 @@ const scaled = (t, full) => (t.unit === '%' ? (t.value / 100) * full : t.value);
 
 /**
  * A function's arguments: three channels and an optional alpha, in the modern (`r g b / a`) or
- * legacy (`r, g, b, a`) syntax.
+ * legacy (`r, g, b, a`) syntax. The legacy syntax is as strict as browsers are: no empty or
+ * `none` argument.
  *
  * @param {string} body - What's between the parentheses.
- * @returns {{channels: Token[], alpha: number} | null} Them, or null when malformed.
+ * @returns {{channels: Token[], alpha: number, legacy: boolean} | null} Them, or null when malformed.
  */
 function argumentsOf(body) {
   const legacy = body.includes(',');
   const [main, slash, extra] = legacy ? [body, undefined, undefined] : body.split('/');
   if (extra !== undefined) return null;
-  const parts = main.trim().split(legacy ? /\s*,\s*/ : /\s+/).filter(Boolean);
+  const parts = legacy ? main.split(',').map((part) => part.trim()) : main.trim().split(/\s+/);
   const alphaText = legacy ? parts[3] : slash?.trim();
   if (parts.length !== (legacy && parts.length === 4 ? 4 : 3)) return null;
   const channels = parts.slice(0, 3).map(token);
-  if (channels.some((t) => t === null)) return null;
   const alpha = alphaText === undefined ? { value: 1, unit: '' } : token(alphaText);
-  if (!alpha) return null;
-  return { channels: /** @type {Token[]} */ (channels), alpha: Math.max(0, Math.min(1, scaled(alpha, 1))) };
+  if (!alpha || channels.some((t) => t === null)) return null;
+  const read = /** @type {Token[]} */ (channels);
+  if (legacy && [...read, alpha].some((t) => t.none)) return null;
+  return { channels: read, alpha: Math.max(0, Math.min(1, scaled(/** @type {Token} */ (alpha), 1))), legacy };
 }
+
+/**
+ * A channel that can't be negative (a saturation, a chroma) or outside a range (a lightness),
+ * kept within it as browsers keep it when they read the colour.
+ *
+ * @param {number} value - The channel.
+ * @param {number} [most] - Its upper limit. Default none.
+ * @returns {number} It, within 0 and `most`.
+ */
+const within = (value, most = Infinity) => Math.max(0, Math.min(most, value));
 
 /**
  * Linear sRGB as a colour, clipped to sRGB as a browser draws it there.
@@ -120,21 +132,38 @@ const fromSrgb = ([r, g, b], alpha) => {
 };
 
 /**
- * Each CSS colour function's channels as a colour.
+ * Each CSS colour function's channels as a colour. Lightness is kept within its range and
+ * chroma and saturation at 0 or more, as CSS Color 4 has it at parse time (and Chrome does:
+ * `oklch(0.5 -0.1 30)` is a grey, not the opposite hue).
  *
  * @type {Record<string, (c: Token[], alpha: number) => Rgba>}
  */
 const FUNCTIONS = {
   rgb: (c, alpha) => fromSrgb(/** @type {Triple} */ (c.map((t) => scaled(t, 255) / 255)), alpha),
-  hsl: ([h, s, l], alpha) => fromSrgb(hslToSrgb([h.value, scaled(s, 100) / 100, scaled(l, 100) / 100]), alpha),
+  hsl: ([h, s, l], alpha) => fromSrgb(hslToSrgb([h.value, within(scaled(s, 100) / 100), scaled(l, 100) / 100]), alpha),
   hwb: ([h, w, b], alpha) => fromSrgb(hwbToSrgb([h.value, scaled(w, 100) / 100, scaled(b, 100) / 100]), alpha),
-  lab: ([l, a, b], alpha) => fromLinear(labToLinear([scaled(l, 100), scaled(a, 125), scaled(b, 125)]), alpha),
-  lch: ([l, c, h], alpha) => fromLinear(labToLinear(fromPolar([scaled(l, 100), scaled(c, 150), h.value])), alpha),
-  oklab: ([l, a, b], alpha) => fromLinear(oklabToLinear([scaled(l, 1), scaled(a, 0.4), scaled(b, 0.4)]), alpha),
-  oklch: ([l, c, h], alpha) => fromLinear(oklabToLinear(fromPolar([scaled(l, 1), scaled(c, 0.4), h.value])), alpha),
+  lab: ([l, a, b], alpha) => fromLinear(labToLinear([within(scaled(l, 100), 100), scaled(a, 125), scaled(b, 125)]), alpha),
+  lch: ([l, c, h], alpha) => fromLinear(labToLinear(fromPolar([within(scaled(l, 100), 100), within(scaled(c, 150)), h.value])), alpha),
+  oklab: ([l, a, b], alpha) => fromLinear(oklabToLinear([within(scaled(l, 1), 1), scaled(a, 0.4), scaled(b, 0.4)]), alpha),
+  oklch: ([l, c, h], alpha) => fromLinear(oklabToLinear(fromPolar([within(scaled(l, 1), 1), within(scaled(c, 0.4)), h.value])), alpha),
 };
 FUNCTIONS.rgba = FUNCTIONS.rgb;
 FUNCTIONS.hsla = FUNCTIONS.hsl;
+
+/**
+ * Whether a function's legacy (comma) arguments are ones browsers take: `rgb()` with numbers or
+ * percentages (not both), `hsl()` with percentages for saturation and lightness; nothing newer
+ * has a legacy syntax.
+ *
+ * @param {string} name - The function.
+ * @param {Token[]} channels - Its three channels.
+ * @returns {boolean} True when it's valid.
+ */
+function legacyValid(name, channels) {
+  if (name === 'rgb' || name === 'rgba') return channels.every((t) => t.unit === '%') || channels.every((t) => t.unit === '');
+  if (name === 'hsl' || name === 'hsla') return channels[0].unit !== '%' && channels[1].unit === '%' && channels[2].unit === '%';
+  return false;
+}
 
 /**
  * A hex colour's digits as a colour: 3, 4, 6 or 8 of them.
@@ -183,7 +212,8 @@ export function parseColor(text) {
   }
   const read = FUNCTIONS[name];
   const args = read && argumentsOf(body);
-  return args ? read(args.channels, args.alpha) : null;
+  if (!args || (args.legacy && !legacyValid(name, args.channels))) return null;
+  return read(args.channels, args.alpha);
 }
 
 /**
@@ -207,17 +237,31 @@ const round = (value, places) => Number(value.toFixed(places)) || 0;
 const hueOf = (hue, chroma, grey, places) => (chroma < grey ? 0 : round(hue, places) % 360);
 
 /**
+ * Whether CSS reads back as a colour's 8-bit channels.
+ *
+ * @param {string} css - The CSS written.
+ * @param {Rgba} color - The colour it was written from.
+ * @returns {boolean} True when it's the same colour on screen.
+ */
+function readsBack(css, color) {
+  const back = parseColor(css);
+  return back !== null && (/** @type {const} */ (['r', 'g', 'b'])).every((key) => Math.round(back[key]) === Math.round(Math.max(0, Math.min(255, color[key]))));
+}
+
+/**
  * Write a colour as CSS.
  *
  * @param {Rgba} color - The colour.
  * @param {ColorFormat} format - How: `hex` (`#1a73e8`, `#1a73e880`), `rgb` (`rgb(26 115 232)`),
- *   `hsl` (`hsl(214 82% 51%)`), `hwb` (`hwb(214 10% 9%)`), `lab` (`lab(48.77 9.69 -67.47)`), `lch`
+ *   `hsl` (`hsl(214.1 81.7% 50.6%)`), `hwb` (`hwb(214.1 10.2% 9%)`), `lab` (`lab(48.77 9.69 -67.47)`), `lch`
  *   (`lch(48.77 68.16 278.17)`), `oklab` (`oklab(57.37% -0.0409 -0.1902)`), `oklch` (`oklch(57.37%
- *   0.1946 257.86)`): enough places that each reads back as the same 8-bit colour. Modern syntax; alpha after a slash when below 1, to two decimals.
+ *   0.1946 257.86)`): as few places as read back as the same 8-bit colour (`hsl(0 100% 50%)` for red, a
+ *   decimal or two for most colours; one more place than shown for the few `oklab`/`oklch` colours that
+ *   need it). Modern syntax; alpha after a slash when below 1, to two decimals.
  * @returns {string} The CSS.
  *
  * @example
- * formatColor({ r: 26, g: 115, b: 232, a: 1 }, 'hsl');   // 'hsl(214 82% 51%)'
+ * formatColor({ r: 255, g: 0, b: 0, a: 1 }, 'hsl');      // 'hsl(0 100% 50%)'
  * formatColor({ r: 26, g: 115, b: 232, a: 0.5 }, 'rgb'); // 'rgb(26 115 232 / 0.5)'
  */
 export function formatColor(color, format) {
@@ -226,42 +270,62 @@ export function formatColor(color, format) {
   /** @type {Triple} */
   const srgb = [color.r / 255, color.g / 255, color.b / 255];
   const linear = /** @type {Triple} */ (srgb.map(srgbToLinear));
+  /**
+   * The first of a format's spellings, shortest first, that reads back as the colour (the last
+   * when none does): each number of places, a near-grey's hue as 0 before its real one.
+   *
+   * @param {readonly number[]} places - Decimal places, in turn.
+   * @param {(places: number, hue: (hue: number, chroma: number, grey: number) => number) => string} write - The
+   *   colour to that many places, its hue through `hue`.
+   * @returns {string} The CSS.
+   */
+  const shortest = (places, write) => {
+    const spellings = places.flatMap((p) => [
+      write(p, (hue, chroma, grey) => hueOf(hue, chroma, grey, p)),
+      write(p, (hue) => round(hue, p) % 360),
+    ]);
+    return spellings.find((css) => readsBack(css, color)) ?? spellings[spellings.length - 1];
+  };
   switch (format) {
     case 'rgb': return `rgb(${round(color.r, 0)} ${round(color.g, 0)} ${round(color.b, 0)}${slash})`;
     case 'hsl': {
       const [h, s, l] = srgbToHsl(srgb);
-      return `hsl(${hueOf(h, s, 0.005, 0)} ${round(s * 100, 0)}% ${round(l * 100, 0)}%${slash})`;
+      return shortest([0, 1, 2], (p, hue) => `hsl(${hue(h, s, 0.005)} ${round(s * 100, p)}% ${round(l * 100, p)}%${slash})`);
     }
     case 'hwb': {
       const [h, w, b] = srgbToHwb(srgb);
-      return `hwb(${hueOf(h, 1 - w - b, 0.005, 0)} ${round(w * 100, 0)}% ${round(b * 100, 0)}%${slash})`;
+      return shortest([0, 1, 2], (p, hue) => `hwb(${hue(h, 1 - w - b, 0.005)} ${round(w * 100, p)}% ${round(b * 100, p)}%${slash})`);
     }
     case 'lab': {
       const [l, a, b] = linearToLab(linear);
-      return `lab(${round(l, 2)} ${round(a, 2)} ${round(b, 2)}${slash})`;
+      return shortest([2, 3], (p) => `lab(${round(l, p)} ${round(a, p)} ${round(b, p)}${slash})`);
     }
     case 'lch': {
       const [l, c, h] = toPolar(linearToLab(linear));
-      return `lch(${round(l, 2)} ${round(c, 2)} ${hueOf(h, c, 0.05, 2)}${slash})`;
+      return shortest([2, 3], (p, hue) => `lch(${round(l, p)} ${round(c, p)} ${hue(h, c, 0.05)}${slash})`);
     }
     case 'oklab': {
       const [l, a, b] = linearToOklab(linear);
-      return `oklab(${round(l * 100, 2)}% ${round(a, 4)} ${round(b, 4)}${slash})`;
+      return shortest([2, 3], (p) => `oklab(${round(l * 100, p)}% ${round(a, p + 2)} ${round(b, p + 2)}${slash})`);
     }
     case 'oklch': {
       const [l, c, h] = toPolar(linearToOklab(linear));
-      return `oklch(${round(l * 100, 2)}% ${round(c, 4)} ${hueOf(h, c, 0.0005, 2)}${slash})`;
+      return shortest([2, 3], (p, hue) => `oklch(${round(l * 100, p)}% ${round(c, p + 2)} ${hue(h, c, 0.0005)}${slash})`);
     }
     default: return rgbaToHex(color);
   }
 }
 
 /** A colour function or keyword inside a longer value: a gradient, a shadow. */
-const COLOR_IN_VALUE = /\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\([^()]*\)|#[0-9a-f]{3,8}\b|\btransparent\b/gi;
+const COLOR_IN_VALUE = /\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\([^()]*\)|#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})\b|\btransparent\b/gi;
+
+/** What isn't the value's own colours: quoted strings and `url(…)` (an inline SVG's fills, an address's `#fragment`). */
+const NOT_COLORS = /\burl\(\s*(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^)]*)\s*\)|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/gi;
 
 /**
  * The colours written in a longer CSS value, in order: a computed gradient's stops, a computed
- * shadow's colours (which browsers write as `rgb()`, `color()`, `oklch()` and the like).
+ * shadow's colours (which browsers write as `rgb()`, `color()`, `oklch()` and the like). What's
+ * inside a `url(…)` or a quoted string isn't the value's colour, and is left out.
  *
  * @param {string} value - The value: `linear-gradient(rgb(0, 0, 0), rgba(0, 0, 0, 0) 50%)`.
  * @returns {string[]} Each colour as written, to read with {@link parseColor}.
@@ -269,5 +333,6 @@ const COLOR_IN_VALUE = /\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\([^()]*\
  * @example
  * cssColorsIn('rgba(0, 0, 0, 0.2) 0px 1px 2px 0px, rgb(26, 115, 232) 0px 0px 0px 2px');
  * // ['rgba(0, 0, 0, 0.2)', 'rgb(26, 115, 232)']
+ * cssColorsIn(`url("data:image/svg+xml,<svg fill='rgb(255,0,0)'/>")`); // []
  */
-export const cssColorsIn = (value) => value.match(COLOR_IN_VALUE) ?? [];
+export const cssColorsIn = (value) => value.replace(NOT_COLORS, ' ').match(COLOR_IN_VALUE) ?? [];

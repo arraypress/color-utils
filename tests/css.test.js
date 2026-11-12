@@ -103,7 +103,7 @@ describe('formatColor', () => {
   it('writes every format; Chrome’s own conversions of rgb(26 115 232) agree to the places shown', () => {
     // Chrome: oklch(0.57368 0.194587 257.863), oklab(0.57368 -0.0409133 -0.190237), lab(48.7735 9.69777 -67.4727), lch(48.7735 68.1661 278.179).
     assert.deepEqual(COLOR_FORMATS.map((format) => formatColor(blue, format)), [
-      '#1a73e8', 'rgb(26 115 232)', 'hsl(214 82% 51%)', 'hwb(214 10% 9%)', 'lab(48.77 9.69 -67.47)', 'lch(48.77 68.16 278.17)',
+      '#1a73e8', 'rgb(26 115 232)', 'hsl(214.1 81.7% 50.6%)', 'hwb(214 10% 9%)', 'lab(48.77 9.69 -67.47)', 'lch(48.77 68.16 278.17)',
       'oklab(57.37% -0.0409 -0.1902)', 'oklch(57.37% 0.1946 257.86)',
     ]);
   });
@@ -117,22 +117,65 @@ describe('formatColor', () => {
 
   it('greys have no hue; no -0', () => {
     const grey = { r: 119, g: 119, b: 119, a: 1 };
-    assert.equal(formatColor(grey, 'hsl'), 'hsl(0 0% 47%)');
-    assert.equal(formatColor(grey, 'hwb'), 'hwb(0 47% 53%)');
+    assert.equal(formatColor(grey, 'hsl'), 'hsl(0 0% 46.7%)');
+    assert.equal(formatColor(grey, 'hwb'), 'hwb(0 46.7% 53.3%)');
     assert.equal(formatColor(grey, 'lch'), 'lch(50.03 0 0)');
     assert.equal(formatColor(grey, 'oklch'), 'oklch(56.93% 0 0)');
     assert.equal(formatColor(grey, 'lab'), 'lab(50.03 0 0)');
     assert.equal(formatColor({ r: 0, g: 0, b: 0, a: 1 }, 'oklab'), 'oklab(0% 0 0)');
   });
 
-  it('what it writes reads back as the same colour', () => {
-    for (let r = 0; r < 256; r += 51) for (let g = 0; g < 256; g += 51) for (let b = 0; b < 256; b += 85) {
-      const color = { r, g, b, a: 1 };
-      for (const format of /** @type {const} */ (['hex', 'rgb', 'lab', 'lch', 'oklab', 'oklch'])) {
-        const back = parseColor(formatColor(color, format));
-        assert.ok(back && [back.r - r, back.g - g, back.b - b].every((d) => Math.abs(d) < 1.5), `${format} ${r},${g},${b} → ${formatColor(color, format)}`);
+  it('what it writes reads back as the same 8-bit colour, in every format', () => {
+    let seed = 7;
+    const next = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % 256; };
+    const colors = Array.from({ length: 4000 }, () => ({ r: next(), g: next(), b: next(), a: 1 }));
+    // Ones whole numbers (hsl, hwb) and four places (oklab, oklch) got wrong, and a near-grey whose hue matters.
+    colors.push({ r: 84, g: 232, b: 57, a: 1 }, { r: 8, g: 246, b: 111, a: 1 }, { r: 0, g: 250, b: 19, a: 1 }, { r: 104, g: 105, b: 105, a: 1 }, { r: 158, g: 157, b: 158, a: 1 });
+    for (const color of colors) {
+      for (const format of COLOR_FORMATS) {
+        const css = formatColor(color, format);
+        const back = parseColor(css);
+        assert.deepEqual(back && [back.r, back.g, back.b].map(Math.round), [color.r, color.g, color.b], `${format} ${color.r},${color.g},${color.b} → ${css}`);
       }
     }
+  });
+
+  it('as few places as read back: whole numbers where they do', () => {
+    assert.equal(formatColor({ r: 255, g: 0, b: 0, a: 1 }, 'hsl'), 'hsl(0 100% 50%)');
+    assert.equal(formatColor({ r: 255, g: 255, b: 255, a: 1 }, 'hwb'), 'hwb(0 100% 0%)');
+    assert.equal(formatColor({ r: 84, g: 232, b: 57, a: 1 }, 'hsl'), 'hsl(110.7 79.2% 56.7%)');
+    assert.equal(formatColor({ r: 104, g: 105, b: 105, a: 1 }, 'hsl'), 'hsl(180 0.5% 41%)', 'a near-grey keeps the hue it needs');
+  });
+});
+
+describe('parseColor reads a colour as Chrome does (each checked in Chromium)', () => {
+  /** @param {string} css @returns {number[] | null} */
+  const bytes = (css) => {
+    const color = parseColor(css);
+    return color && [color.r, color.g, color.b].map(Math.round);
+  };
+
+  it('chroma and saturation below 0 are 0; lightness is kept in its range', () => {
+    assert.deepEqual(bytes('oklch(0.5 -0.1 30)'), [99, 99, 99]);
+    assert.deepEqual(bytes('lch(50 -20 0)'), [119, 119, 119]);
+    assert.deepEqual(bytes('hsl(0 -50% 50%)'), [128, 128, 128]);
+    assert.deepEqual(bytes('hsl(0, -50%, 50%)'), [128, 128, 128]);
+    assert.deepEqual(bytes('lab(-10 50 0)'), [57, 0, 3]);
+    assert.deepEqual(bytes('oklab(1.2 0.1 0)'), [255, 227, 252]);
+    assert.deepEqual(bytes('oklab(-0.2 0.1 0)'), [1, 0, 0]);
+    assert.deepEqual(bytes('lch(120 50 20)'), [255, 218, 224]);
+    assert.deepEqual(bytes('hsl(0 150% 50%)'), [255, 0, 0]);
+    assert.deepEqual(bytes('hwb(0 -20% 0%)'), [255, 0, 0]);
+  });
+
+  it('what Chrome calls invalid is null: an empty argument, a number ending in a point, legacy arguments mixed or without their %', () => {
+    for (const invalid of ['rgb(0,,0,0)', 'rgb(1. 2 3)', 'rgb(10, 20%, 30)', 'hsl(120, 100, 50)', 'rgb(none, 0, 0)', 'lab(50, 20, 30)', '#12345', '#1234567']) {
+      assert.equal(parseColor(invalid), null, invalid);
+    }
+    assert.deepEqual(bytes('rgb(10 20% 30)'), [10, 51, 30]);
+    assert.deepEqual(bytes('hsl(120 100 50)'), [0, 255, 0]);
+    assert.deepEqual(bytes('hsl(120deg, 100%, 50%)'), [0, 255, 0]);
+    assert.deepEqual(parseColor('rgba(0, 0, 0, 50%)'), { r: 0, g: 0, b: 0, a: 0.5 });
   });
 });
 
@@ -179,5 +222,9 @@ describe('cssColorsIn', () => {
     assert.deepEqual(cssColorsIn('rgba(0, 0, 0, 0.2) 0px 1px 2px 0px, #1a73e8 0px 0px 0px 2px inset, transparent 0 0'), ['rgba(0, 0, 0, 0.2)', '#1a73e8', 'transparent']);
     assert.deepEqual(cssColorsIn('none'), []);
     assert.deepEqual(cssColorsIn('url("#gradient")'), [], 'a fragment isn’t a hex colour');
+    assert.deepEqual(cssColorsIn(`url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><path fill='rgb(255,0,0)' stroke='#00f'/></svg>"), linear-gradient(rgb(1, 2, 3), #abc)`),
+      ['rgb(1, 2, 3)', '#abc'], 'an inline SVG’s fills aren’t the value’s colours');
+    assert.deepEqual(cssColorsIn('url(sprite.svg#fade), url(a.svg#bad)'), [], 'nor an address’s fragment');
+    assert.deepEqual(cssColorsIn('#abcde #abcdef0 #abcd'), ['#abcd'], 'only 3, 4, 6 or 8 digits are a colour');
   });
 });

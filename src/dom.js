@@ -97,6 +97,18 @@ function iconsOnly(style) {
 }
 
 /**
+ * An opacity as a number: 1 when the style gives none (a style read another way than
+ * `getComputedStyle`, whose `opacity` is `''` or missing).
+ *
+ * @param {string | undefined} value - The style's `opacity`.
+ * @returns {number} 0-1.
+ */
+function opacityOf(value) {
+  const opacity = Number.parseFloat(value ?? '');
+  return Number.isFinite(opacity) ? Math.max(0, Math.min(1, opacity)) : 1;
+}
+
+/**
  * What one element paints under its content.
  *
  * @typedef {object} Layer
@@ -121,7 +133,7 @@ function layerOf(style) {
     color: boxless ? TRANSPARENT : parseColor(style.backgroundColor) ?? TRANSPARENT,
     stops: stops.some((stop) => stop.a > 0) ? stops : [],
     image: !boxless && /\b(?:url|image-set|-webkit-image-set|cross-fade|element|paint)\(/.test(image) && !iconsOnly(style),
-    opacity: Number(style.opacity ?? 1),
+    opacity: opacityOf(style.opacity),
     effect: (style.filter ?? 'none') !== 'none' || (style.mixBlendMode ?? 'normal') !== 'normal',
   };
 }

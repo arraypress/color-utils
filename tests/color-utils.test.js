@@ -30,6 +30,8 @@ describe('hexToRgb', () => {
     assert.deepEqual(hexToRgb('#fff'), { r: 255, g: 255, b: 255 });
     assert.deepEqual(hexToRgb('#000'), { r: 0, g: 0, b: 0 });
     assert.deepEqual(hexToRgb('#f00'), { r: 255, g: 0, b: 0 });
+    assert.deepEqual(hexToRgb('#f008'), { r: 255, g: 0, b: 0 }, 'four digits: the alpha left out');
+    assert.deepEqual(hexToRgb('#ff000080'), { r: 255, g: 0, b: 0 });
   });
 
   it('works without # prefix', () => {

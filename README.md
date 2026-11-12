@@ -21,6 +21,7 @@ import { hexToRgb } from '@arraypress/color-utils';
 
 hexToRgb('#ff0000')  // { r: 255, g: 0, b: 0 }
 hexToRgb('#fff')     // { r: 255, g: 255, b: 255 }
+hexToRgb('#f008')    // { r: 255, g: 0, b: 0 } (alpha left out)
 hexToRgb('00ff00')   // { r: 0, g: 255, b: 0 }
 ```
 
@@ -232,7 +233,9 @@ parseColor('currentcolor');          // null
 formatColor({ r: 26, g: 115, b: 232, a: 0.5 }, 'oklch'); // 'oklch(57.37% 0.1946 257.86 / 0.5)'
 ```
 
-Formats: `hex`, `rgb`, `hsl`, `hwb`, `lab`, `lch`, `oklab`, `oklch`; each reads back as the same 8-bit colour.
+Formats: `hex`, `rgb`, `hsl`, `hwb`, `lab`, `lch`, `oklab`, `oklch`; each reads back as the same 8-bit colour, written with as few decimal places as that takes (`hsl(0 100% 50%)` for red, `hsl(214.1 81.7% 50.6%)` for `#1a73e8`).
+
+`parseColor` keeps what Chrome keeps: lightness within its range and chroma and saturation at 0 or more (`oklch(0.5 -0.1 30)` is a grey), and `null` for what Chrome calls invalid (`rgb(0,,0)`, `rgb(10, 20%, 30)`, `hsl(120, 100, 50)`). `cssColorsIn(value)` lists the colours written in a longer value (a gradient's stops, a shadow's colours), leaving out what's inside a `url(…)` or a quoted string.
 
 ### `blendOver(top, bottom)` / `rgbaToHex(rgba)` / `deltaEOK(a, b)`
 

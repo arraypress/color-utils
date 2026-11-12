@@ -13,7 +13,8 @@ export { COLOR_NAMES, colorName, nearestColorNames } from './names.js';
 
 /**
  * Parse a hex color string to its RGB components.
- * Supports both 3-character shorthand (#f00) and 6-character (#ff0000) formats.
+ * Supports 3-character shorthand (#f00) and 6-character (#ff0000) formats, and the same with
+ * alpha (#f008, #ff000080), whose alpha is left out.
  *
  * @param {string} hex - Hex color string (with or without '#' prefix).
  * @returns {{ r: number, g: number, b: number }} RGB components (0-255 each).
@@ -22,11 +23,12 @@ export { COLOR_NAMES, colorName, nearestColorNames } from './names.js';
  * hexToRgb('#ff6600');  // { r: 255, g: 102, b: 0 }
  * hexToRgb('f00');      // { r: 255, g: 0, b: 0 }
  * hexToRgb('#abc');     // { r: 170, g: 187, b: 204 }
+ * hexToRgb('#f008');    // { r: 255, g: 0, b: 0 }
  */
 export function hexToRgb(hex) {
   if (!hex) return { r: 0, g: 0, b: 0 };
   const h = hex.replace('#', '');
-  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const full = h.length === 3 || h.length === 4 ? h.split('').map(c => c + c).join('') : h;
   return {
     r: parseInt(full.substring(0, 2), 16),
     g: parseInt(full.substring(2, 4), 16),

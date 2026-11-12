@@ -99,7 +99,9 @@ export function formatOklch(hex) {
  */
 export function mixOklab(a, b, t = 0.5) {
   const p = toOklab(a), q = toOklab(b);
-  return linearToHex(oklabToLinear([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t]));
+  // Through fromOklch: a mix that falls just outside sRGB loses chroma, not its hue.
+  const [l, c, h] = toPolar([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, p[2] + (q[2] - p[2]) * t]);
+  return fromOklch({ l, c, h });
 }
 
 /**

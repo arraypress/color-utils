@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`computedColor(value, parent)`** (`dom.js`, browser): any CSS colour as Chrome works it out where it's used. `parseColor` first; otherwise (`light-dark()`, `color-mix()`, a relative colour, a system colour) the computed colour of an element put inside `parent` for a moment; `null` when it isn't a colour or depends on the element (`currentcolor`, `var()`, `inherit`). For Better Colours' root variables and its colour field, which each had their own way: the variables' one-pixel canvas silently refused `light-dark()`, `AccentColor` and `contrast-color()` (seen in Chromium 156: the pixel kept the colour drawn before, so a variable was given the previous one's colour) and read translucent colours a few steps off.
 
+### Fixed
+
+- **`formatColor` reads back as the same 8-bit colour in every format**, as its documentation said: `hsl` and `hwb` were written in whole numbers, which read back a step or two off for nine colours in ten (`{84, 232, 57}` → `hsl(111 79% 57%)` → `{85, 232, 59}`), and four places lost a few `oklab`/`oklch` colours. Each format is now written with as few places as read back exactly: `hsl(0 100% 50%)` stays, `#1a73e8` is `hsl(214.1 81.7% 50.6%)`, a near-grey keeps the hue it needs.
+- **`cssColorsIn` leaves out what's inside `url(…)` and quoted strings**: an inline SVG icon's `fill='rgb(255,0,0)'` (or an address's `#fade`) was taken for a gradient stop, so `paintedColors` reported text beside a 16px icon as being over a red gradient, its real background lost. Hex colours of 5 or 7 digits aren't matched.
+- **`parseColor` keeps what CSS Color 4 and Chrome keep** (each checked in Chromium): chroma and saturation below 0 are 0 (`oklch(0.5 -0.1 30)` read as the opposite hue, `hsl(0 -50% 50%)` as a teal), lightness stays within its range (`lab(-10 50 0)`, `oklab(1.2 0.1 0)`, `lch(120 50 20)`); and what Chrome calls invalid is `null` (`rgb(0,,0,0)`, `rgb(1. 2 3)`, legacy `rgb(10, 20%, 30)` and `hsl(120, 100, 50)`, `none` in the legacy syntax).
+- **`hexToRgb` reads four digits** (`#f008`, which `parseColor` and `rgbaToHex` write): it gave `{240, 15, NaN}`, so `contrastRatio` was `NaN` and `nearestReadable` `null`.
+- **`mixOklab` loses chroma, not hue, when a mix falls outside sRGB** (green to blue at 70% was clipped 9° off its hue), as the module says of every derived colour.
+- **`paintedColors` with a `style` reader that gives no `opacity`** (`''`, or none) reads the element as opaque; it read it as invisible.
+
 ## [1.6.0] — 2026-11-12
 
 ### Added

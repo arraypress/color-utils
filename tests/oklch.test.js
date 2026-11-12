@@ -137,3 +137,15 @@ describe('wcagLevel / pickReadable', () => {
     assert.deepEqual(hexToRgb('#ABC'), { r: 170, g: 187, b: 204 });
   });
 });
+
+describe('mixOklab stays in sRGB by losing chroma', () => {
+  it('a mix that falls outside sRGB keeps its hue and lightness (it isn’t clipped channel by channel)', () => {
+    // 70% of the way from green to blue in OKLab is oklch(0.576 0.189 240.5), outside sRGB: clipped
+    // it was #0081dc, 9° off in hue and lighter.
+    const { l, h } = toOklch(mixOklab('#00ff00', '#0000ff', 0.7));
+    assert.ok(Math.abs(h - 240.5) < 1.5, `hue ${h}`);
+    assert.ok(Math.abs(l - 0.576) < 0.005, `lightness ${l}`);
+    assert.equal(mixOklab('#ffffff', '#2563eb', 0), '#ffffff');
+    assert.equal(mixOklab('#ffffff', '#2563eb', 1), '#2563eb');
+  });
+});

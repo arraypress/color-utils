@@ -89,6 +89,9 @@ describe('paintedColors', () => {
     const icon = { backgroundImage: 'url("arrow.svg")', 'background-repeat': 'no-repeat' };
     assert.equal(painted(el({ ...icon, 'background-size': '12px' })).behind, 'solid', 'a link’s 12px arrow beside its text');
     assert.equal(painted(el({ ...icon, 'background-size': '16px 16px' })).behind, 'solid');
+    const drawn = { ...icon, 'background-size': '16px', backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><path fill='rgb(255,0,0)'/></svg>")` };
+    assert.deepEqual(painted(el({ ...drawn, color: 'rgb(200, 0, 0)' }, el({ backgroundColor: 'rgb(255, 255, 255)' }))), { behind: 'solid', pairs: ['200 0 0 on 255 255 255'] },
+      'an inline SVG icon’s fill isn’t a gradient behind the text');
     assert.equal(painted(el({ ...icon, 'background-size': '64px 64px' })).behind, 'image', 'bigger than an icon');
     assert.equal(painted(el({ ...icon, 'background-size': 'auto' })).behind, 'image', 'its own size, unknown');
     assert.equal(painted(el({ ...icon, 'background-size': 'cover' })).behind, 'image');
@@ -199,5 +202,15 @@ describe('computedColor', () => {
     const parent = place({ inherit: 'rgb(1, 2, 3)', 'rgb(from currentcolor r g b)': 'rgb(0, 0, 0)' });
     for (const value of ['', '16px', 'var(--brand)', 'currentColor', 'inherit', 'rgb(from currentcolor r g b)']) assert.equal(computedColor(value, parent), null, value);
     assert.equal(parent.probes.length, 0);
+  });
+});
+
+describe('paintedColors with styles read another way', () => {
+  it('a style with no opacity (\'\' or missing) is opaque, not invisible', () => {
+    const page = el({ backgroundColor: 'rgb(255, 255, 255)' });
+    assert.deepEqual(painted(el({ opacity: '' }, page)).pairs, ['0 0 0 on 255 255 255']);
+    const bare = el({}, page);
+    delete bare.computed.opacity;
+    assert.deepEqual(painted(bare).pairs, ['0 0 0 on 255 255 255']);
   });
 });
