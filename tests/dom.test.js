@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { DARK_CANVAS, LIGHT_CANVAS, canvasColor, paintParent, paintedColors } from '../src/index.js';
+import { DARK_CANVAS, LIGHT_CANVAS, canvasColor, computedColor, paintParent, paintedColors } from '../src/index.js';
 
 /**
  * A fake element: its parent, and the computed style properties paintedColors reads (Chrome's
@@ -150,5 +150,54 @@ describe('canvasColor', () => {
     assert.deepEqual(canvasColor(page('normal', 'dark')), DARK_CANVAS);
     assert.deepEqual(canvasColor(page('normal', 'Light Dark', true)), DARK_CANVAS);
     assert.deepEqual(canvasColor(page('light', 'dark')), LIGHT_CANVAS);
+  });
+});
+
+describe('computedColor', () => {
+  /**
+   * A fake place in a page: what Chrome's `CSS.supports` and computed style say for the colours it
+   * knows, and what was put in and taken out of it.
+   *
+   * @param {Record<string, string>} computes - What each supported value computes to.
+   */
+  const place = (computes) => {
+    /** @type {{style: Map<string, [string, string]>, removed: boolean}[]} */
+    const probes = [];
+    const parent = /** @type {any} */ ({
+      probes,
+      append: (/** @type {any} */ probe) => { probes.push(probe); },
+      ownerDocument: {
+        createElement: () => {
+          const probe = { style: Object.assign(new Map(), { setProperty(/** @type {string} */ name, /** @type {string} */ css, /** @type {string} */ priority) { this.set(name, [css, priority]); } }), removed: false, remove() { this.removed = true; } };
+          return probe;
+        },
+        defaultView: {
+          CSS: { supports: (/** @type {string} */ _property, /** @type {string} */ css) => css in computes },
+          getComputedStyle: (/** @type {any} */ probe) => ({ color: computes[probe.style.get('color')[0]] }),
+        },
+      },
+    });
+    return parent;
+  };
+
+  it('a colour written outright is read as it is: nothing is put in the page', () => {
+    const parent = place({});
+    assert.deepEqual(computedColor(' #1a73e8 ', parent), { r: 26, g: 115, b: 232, a: 1 });
+    assert.equal(parent.probes.length, 0);
+  });
+
+  it('one Chrome has to work out is read from an element put in the place for a moment, over the page’s own rules', () => {
+    const parent = place({ 'light-dark(#1f1f1f, #e3e3e3)': 'rgb(227, 227, 227)', AccentColor: 'rgb(0, 117, 255)', 'color-mix(in srgb, red, transparent 80%)': 'color(srgb 1 0 0 / 0.2)' });
+    assert.deepEqual(computedColor('light-dark(#1f1f1f, #e3e3e3)', parent), { r: 227, g: 227, b: 227, a: 1 });
+    assert.deepEqual(computedColor('AccentColor', parent), { r: 0, g: 117, b: 255, a: 1 });
+    assert.deepEqual(computedColor('color-mix(in srgb, red, transparent 80%)', parent), { r: 255, g: 0, b: 0, a: 0.2 });
+    assert.equal(parent.probes.length, 3);
+    assert.ok(parent.probes.every((/** @type {any} */ probe) => probe.removed && probe.style.get('display').join() === 'none,important' && probe.style.get('color')[1] === 'important'));
+  });
+
+  it('null for what isn’t a colour, and for one that depends on the element it’s used on', () => {
+    const parent = place({ inherit: 'rgb(1, 2, 3)', 'rgb(from currentcolor r g b)': 'rgb(0, 0, 0)' });
+    for (const value of ['', '16px', 'var(--brand)', 'currentColor', 'inherit', 'rgb(from currentcolor r g b)']) assert.equal(computedColor(value, parent), null, value);
+    assert.equal(parent.probes.length, 0);
   });
 });

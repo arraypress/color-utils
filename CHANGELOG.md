@@ -5,6 +5,12 @@ All notable changes to `@arraypress/color-utils` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] — 2026-11-12
+
+### Added
+
+- **`computedColor(value, parent)`** (`dom.js`, browser): any CSS colour as Chrome works it out where it's used. `parseColor` first; otherwise (`light-dark()`, `color-mix()`, a relative colour, a system colour) the computed colour of an element put inside `parent` for a moment; `null` when it isn't a colour or depends on the element (`currentcolor`, `var()`, `inherit`). For Better Colours' root variables and its colour field, which each had their own way: the variables' one-pixel canvas silently refused `light-dark()`, `AccentColor` and `contrast-color()` (seen in Chromium 156: the pixel kept the colour drawn before, so a variable was given the previous one's colour) and read translucent colours a few steps off.
+
 ## [1.6.0] — 2026-11-12
 
 ### Added

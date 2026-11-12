@@ -248,6 +248,15 @@ isLargeText(18.67, 700);               // true (14pt bold)
 requiredRatio('AAA', false);           // 7
 ```
 
+### A colour Chrome has to work out: `computedColor(value, parent)` (browser)
+
+`parseColor` first; otherwise (`light-dark()`, `color-mix()`, a relative colour, a system colour such as `AccentColor`) the computed colour of an element put inside `parent` for a moment, so `light-dark()` follows that place's colour scheme. `null` when it isn't a colour or depends on the element (`currentcolor`, `var()`, `inherit`). A canvas can't be used for this: it silently refuses `light-dark()`, `AccentColor` and `contrast-color()`, and a translucent colour read back from its pixel is a few steps off.
+
+```js
+computedColor('light-dark(#1f1f1f, #e3e3e3)', document.documentElement); // { r: 31, g: 31, b: 31, a: 1 } on a light page
+computedColor('var(--brand)', document.body);                             // null
+```
+
 ### What a page's text shows in: `paintedColors(element, { style?, canvas? })` / `canvasColor(doc)` (browser)
 
 The text's colour (`-webkit-text-fill-color`) over its and its ancestors' backgrounds (through shadow roots and slots), laid from the page's canvas up as Chrome paints them, opacity groups included. `behind` is `'solid'`, `'gradient'` (a pair per gradient colour), or, when styles can't tell, `'image'` or `'effect'` (a filter, a blend mode, gradient-filled text). `canvasColor` is white, or Chrome's dark canvas (`rgb(18 18 18)`) when the page opts into dark.

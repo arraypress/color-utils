@@ -223,3 +223,40 @@ export function paintedColors(element, { style, canvas, text: given } = {}) {
   };
   return { behind: gradient ? 'gradient' : 'solid', pairs: paint(0, [canvas ?? canvasColor(doc)]) };
 }
+
+/** Values that are no colour of their own: they depend on the element they're used on, or name another value. */
+const DEPENDENT = /currentcolor|var\(|^(?:inherit|initial|unset|revert|revert-layer)$/i;
+
+/**
+ * Any CSS colour as Chrome works it out where it's used: one `parseColor` reads directly, or one
+ * Chrome has to compute there (`light-dark()`, `color-mix()`, a relative colour, a system colour
+ * such as `AccentColor`), read from the computed style of an element put inside `parent` for a
+ * moment. A canvas can't do this: it refuses `light-dark()`, `AccentColor` and `contrast-color()`
+ * without an error, and a translucent colour read back from its pixel is off by a few steps.
+ *
+ * @param {string} value - What's written (a custom property's value, something typed).
+ * @param {Element} parent - Where the colour is used: its colour scheme decides `light-dark()`.
+ * @returns {Rgba | null} The colour, or null when it isn't one or depends on the element
+ *   (`currentcolor`, `var()`, `inherit` and the like).
+ *
+ * @example
+ * computedColor('light-dark(#1f1f1f, #e3e3e3)', document.documentElement); // { r: 31, g: 31, b: 31, a: 1 } on a light page
+ * computedColor('color-mix(in srgb, red 30%, blue)', document.body); // { r: 77, g: 0, b: 179, a: 1 }
+ */
+export function computedColor(value, parent) {
+  const css = value.trim();
+  if (!css || DEPENDENT.test(css)) return null;
+  const direct = parseColor(css);
+  if (direct) return direct;
+  const doc = parent.ownerDocument;
+  const view = /** @type {Window & typeof globalThis} */ (doc.defaultView);
+  if (!view.CSS.supports('color', css)) return null;
+  const probe = doc.createElement('span');
+  // `!important`: the page's own rules for spans don't get a say.
+  probe.style.setProperty('display', 'none', 'important');
+  probe.style.setProperty('color', css, 'important');
+  parent.append(probe);
+  const computed = view.getComputedStyle(probe).color;
+  probe.remove();
+  return parseColor(computed);
+}

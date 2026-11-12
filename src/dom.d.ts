@@ -30,3 +30,6 @@ export function paintParent(element: Element): Element | null;
 
 /** The colours an element's text shows in, its ancestors' backgrounds laid from the canvas up, group opacity included. */
 export function paintedColors(element: Element, options?: { style?: (element: Element) => StyleRead; canvas?: Rgba; text?: Rgba }): PaintedText;
+
+/** Any CSS colour as Chrome works it out inside `parent` (`light-dark()`, `color-mix()`, system colours too); null when it isn't one or depends on the element. */
+export function computedColor(value: string, parent: Element): Rgba | null;
