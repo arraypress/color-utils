@@ -4,6 +4,7 @@ export { WCAG, wcagLevel, pickReadable, isLargeText, requiredRatio, textContrast
 export { TRANSPARENT, blendOver, rgbaToHex, rgbaToOklab, deltaEOK } from './rgba.js';
 export { COLOR_FORMATS, parseColor, formatColor, cssColorsIn } from './css.js';
 export { apcaContrast } from './apca.js';
+export { dominantColors } from './dominant.js';
 export { LIGHT_CANVAS, DARK_CANVAS, canvasColor, computedColor, paintParent, paintedColors } from './dom.js';
 export {
   RGB_SPACES, srgbToLinear, linearToSrgb, rgbSpaceToLinear, linearToRgbSpace, labToLinear, linearToLab,

@@ -1,7 +1,7 @@
 {
   "name": "@arraypress/color-utils",
-  "version": "1.7.1",
-  "description": "Color utility functions: every CSS colour read and written, WCAG 2 and APCA contrast, what a page's text really shows in, OKLCH and OKLab conversion and mixing, 50-950 tonal scales, and colour names.",
+  "version": "1.8.0",
+  "description": "Color utility functions: every CSS colour read and written, WCAG 2 and APCA contrast, what a page's text really shows in, an image's dominant colours, OKLCH and OKLab conversion and mixing, 50-950 tonal scales, and colour names.",
   "type": "module",
   "main": "src/index.js",
   "types": "src/index.d.ts",
@@ -30,7 +30,9 @@
     "oklch",
     "apca",
     "css-color",
-    "color-names"
+    "color-names",
+    "dominant-colors",
+    "image-palette"
   ],
   "author": "David Sherlock",
   "license": "MIT",

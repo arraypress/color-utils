@@ -5,7 +5,11 @@ All notable changes to `@arraypress/color-utils` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.7.1] — 2026-11-13
+## [1.8.0] — 2026-11-13
+
+### Added
+
+- **`dominantColors(data, options?)`** (`dominant.js`): the colours an image is made of, from its pixels (`ImageData.data`): up to 8 (`max`) colours that look different from one another, each with the `share` of the image it covers, most used first. The pixels are counted in a grid of sRGB (each cell at the mean of its pixels, so a flat colour comes back exactly), the cells clustered in OKLab (k-means from a fixed start: the heaviest cell, then each cell most common and most unlike those chosen), clusters closer than `distinct` (ΔE 0.05) merged, and one under `minShare` (1%) joined to its nearest. Fully transparent pixels aren't counted; a translucent one counts for its alpha. A big image is read at even steps (`maxSamples`, 65,536). No randomness: the same pixels give the same colours. For Better Colours' palette from an image.
 
 ### Fixed
 

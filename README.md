@@ -239,6 +239,28 @@ Formats: `hex`, `rgb`, `hsl`, `hwb`, `lab`, `lch`, `oklab`, `oklch`; each reads 
 
 `parseColor` keeps what Chrome keeps: lightness within its range and chroma and saturation at 0 or more (`oklch(0.5 -0.1 30)` is a grey), and `null` for what Chrome calls invalid (`rgb(0,,0)`, `rgb(10, 20%, 30)`, `hsl(120, 100, 50)`). `cssColorsIn(value)` lists the colours written in a longer value (a gradient's stops, a shadow's colours), leaving out what's inside a `url(…)` or a quoted string.
 
+### An image's colours: `dominantColors(data, options?)`
+
+The few colours an image is made of, from its pixels (RGBA bytes, four a pixel: a canvas's `ImageData.data`), each with the share of the image it covers, most used first. Clustered in OKLab, so the colours given look different from one another; fully transparent pixels aren't counted and a translucent one counts for its alpha. Deterministic: the same pixels always give the same colours.
+
+```js
+import { dominantColors } from '@arraypress/color-utils';
+
+const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+dominantColors(data);
+// [{ r: 214, g: 198, b: 172, a: 1, share: 0.34 }, { r: 58, g: 92, b: 64, a: 1, share: 0.22 }, …] (up to 8)
+dominantColors(data, { max: 5, distinct: 0.08 });
+```
+
+| Option | Default | |
+|---|---|---|
+| `max` | 8 | The most colours given. |
+| `distinct` | 0.05 | Colours closer than this (ΔE in OKLab) are one colour. |
+| `minShare` | 0.01 | A colour covering less of the image joins the one nearest it. |
+| `maxSamples` | 65,536 | The most pixels read; a bigger image is read at even steps across it. |
+
+A flat colour comes back exactly, with its exact share; the shares add up to 1. An image with no visible pixel gives `[]`.
+
 ### `blendOver(top, bottom)` / `rgbaToHex(rgba)` / `deltaEOK(a, b)`
 
 A translucent colour laid over another; hex with alpha (`#rrggbbaa` when translucent); how different two colours look in OKLab (about 0.02 is just noticeable; black to white is 1).

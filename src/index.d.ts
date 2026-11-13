@@ -9,6 +9,7 @@ export * from './names.js';
 export * from './rgba.js';
 export * from './css.js';
 export * from './apca.js';
+export * from './dominant.js';
 export * from './dom.js';
 export * from './spaces.js';
 
