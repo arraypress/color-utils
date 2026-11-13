@@ -37,9 +37,73 @@ const CHROME_DRAWS = [
   ['hwb(30 20% 10%)', [230, 140, 51, 255]],
 ];
 
+/**
+ * What Chromium 156 draws on an sRGB canvas where CSS Color 4's maths in double precision is a
+ * step off (a channel near a half): Chromium works in single precision with its own D50 white
+ * and matrices. Found among 40,000 random colours of each function, of which the double-precision
+ * maths got 33 (hsl), 304 (hwb), 975 (lab), 1,026 (lch), 910 (oklab) and 978 (oklch) wrong.
+ *
+ * @type {[string, number[]][]}
+ */
+const CHROME_DRAWS_NEAR_A_HALF = [
+  ['hwb(200 10% 20%)', [26, 145, 204]], ['hsl(215 80% 50%)', [25, 111, 230]], ['hsl(254 100% 50%)', [59, 0, 255]],
+  ['hsl(130 60% 50%)', [51, 204, 77]], ['hsl(256 100% 95%)', [236, 230, 255]], ['hsl(110 100% 86%)', [196, 255, 184]], ['hsl(4 25% 24%)', [76, 48, 46]], ['hsl(220 50% 20%)', [26, 42, 77]],
+  ['hwb(76 34% 10%)', [191, 230, 87]], ['hwb(130 5% 50%)', [13, 128, 32]], ['hwb(158 64% 16%)', [163, 214, 196]], ['hwb(310 70% 14%)', [219, 179, 213]], ['hwb(310 65% 13%)', [222, 166, 213]],
+  ['lab(64.8 53.6 32.2)', [250, 112, 103]], ['lab(75.7 16.5 20.4)', [225, 175, 150]], ['lab(39.9 -32.1 9.7)', [18, 107, 77]], ['lab(83.7 54.4 35)', [255, 164, 146]], ['lab(88 -28.6 -28.6)', [113, 238, 255]],
+  ['lch(92.9 65 139)', [149, 255, 148]], ['lch(93.2 30.5 217)', [160, 250, 255]], ['lch(57.6 14.1 44)', [160, 132, 122]], ['lch(6.2 74.3 348)', [87, 0, 42]], ['lch(99.6 70.4 249)', [34, 255, 255]],
+  ['oklab(0.8 -0.09 -0.09)', [77, 206, 251]], ['oklab(0.7 0.03 -0.16)', [141, 143, 255]], ['oklab(0.66 0.01 -0.13)', [122, 138, 225]], ['oklab(0.88 -0.16 0.02)', [48, 249, 205]], ['oklab(0.09 0.05 0.15)', [25, 0, 0]],
+  ['oklch(0.91 0.21 152)', [83, 255, 152]], ['oklch(0.98 0.02 150)', [239, 253, 241]], ['oklch(0.92 0.01 215)', [221, 230, 233]], ['oklch(0.96 0.11 119)', [233, 253, 168]], ['oklch(0.89 0.01 313)', [221, 217, 224]],
+];
+
+/**
+ * Colours whose spelling up to 1.7.0 Chromium 156's canvas read back as another colour (33 hsl,
+ * 106 hwb, 197 lab, 251 lch, 1,288 oklab and 1,066 oklch of the 140,608 colours on a grid of 5),
+ * with what Chrome read that spelling as, and the spelling now, which Chrome reads back exactly
+ * (none of 140,608, 636,056 on a grid of 3 or a million random colours differs, in any format).
+ *
+ * @type {[import('../src/index.js').ColorFormat, number[], string, number[], string][]}
+ */
+const FORMAT_FIXED = [
+  ['hsl', [25, 5, 250], 'hsl(245 96% 50%)', [26, 5, 250], 'hsl(244.9 96.1% 50%)'],
+  ['hsl', [60, 25, 230], 'hsl(250 80% 50%)', [59, 25, 230], 'hsl(250.2 80.4% 50%)'],
+  ['hsl', [195, 255, 0], 'hsl(74 100% 50%)', [196, 255, 0], 'hsl(74.1 100% 50%)'],
+  ['hsl', [250, 5, 25], 'hsl(355 96% 50%)', [250, 5, 26], 'hsl(355.1 96.1% 50%)'],
+  ['hsl', [255, 60, 20], 'hsl(10 100% 54%)', [255, 59, 20], 'hsl(10.2 100% 53.9%)'],
+  ['hwb', [0, 0, 25], 'hwb(240 0% 90%)', [0, 0, 26], 'hwb(240 0% 90.2%)'],
+  ['hwb', [10, 20, 25], 'hwb(200 4% 90%)', [10, 20, 26], 'hwb(200 3.9% 90.2%)'],
+  ['hwb', [25, 0, 5], 'hwb(348 0% 90%)', [26, 0, 5], 'hwb(348 0% 90.2%)'],
+  ['hwb', [25, 20, 10], 'hwb(40 4% 90%)', [26, 20, 10], 'hwb(40 3.9% 90.2%)'],
+  ['hwb', [255, 60, 20], 'hwb(10 8% 0%)', [255, 59, 20], 'hwb(10.2 7.8% 0%)'],
+  ['lab', [5, 190, 255], 'lab(71.56 -23.48 -43.98)', [4, 190, 255], 'lab(71.56 -23.46 -43.98)'],
+  ['lab', [5, 250, 25], 'lab(86.32 -77.62 77.51)', [4, 250, 25], 'lab(86.32 -77.6 77.51)'],
+  ['lab', [10, 230, 55], 'lab(80.19 -71.54 65.53)', [9, 230, 55], 'lab(80.19 -71.52 65.53)'],
+  ['lab', [10, 245, 235], 'lab(87.27 -51.13 -9.64)', [9, 245, 235], 'lab(87.27 -51.11 -9.64)'],
+  ['lab', [15, 255, 245], 'lab(90.47 -52.52 -10.09)', [14, 255, 245], 'lab(90.47 -52.5 -10.09)'],
+  ['lch', [5, 210, 140], 'lch(74.71 61.52 158.95)', [4, 210, 140], 'lch(74.71 61.51 158.94)'],
+  ['lch', [5, 250, 15], 'lch(86.3 110.63 134.68)', [4, 250, 15], 'lch(86.3 110.62 134.67)'],
+  ['lch', [10, 225, 220], 'lch(80.95 48.26 193.3)', [9, 225, 220], 'lch(80.95 48.24 193.31)'],
+  ['lch', [10, 250, 130], 'lch(86.97 82.48 148.74)', [9, 250, 130], 'lch(86.97 82.47 148.73)'],
+  ['lch', [15, 255, 250], 'lch(90.59 52.93 193.65)', [14, 255, 250], 'lch(90.59 52.91 193.66)'],
+  ['oklab', [5, 140, 100], 'oklab(56.73% -0.1148 0.0319)', [4, 140, 100], 'oklab(56.73% -0.1147 0.032)'],
+  ['oklab', [5, 245, 255], 'oklab(88.2% -0.1405 -0.0514)', [4, 245, 255], 'oklab(88.198% -0.14044 -0.05138)'],
+  ['oklab', [10, 235, 125], 'oklab(82.418% -0.18924 0.09867)', [9, 235, 125], 'oklab(82.42% -0.1892 0.0987)'],
+  ['oklab', [15, 240, 195], 'oklab(85.18% -0.1617 0.0214)', [14, 240, 195], 'oklab(85.18% -0.1616 0.0214)'],
+  ['oklab', [255, 240, 0], 'oklab(93.71% -0.0515 0.192)', [255, 240, 1], 'oklab(93.71% -0.0514 0.1921)'],
+  ['oklch', [5, 160, 160], 'oklch(63.93% 0.1085 194.78)', [4, 160, 160], 'oklch(63.93% 0.1084 194.78)'],
+  ['oklch', [5, 245, 180], 'oklch(86% 0.1796 165.33)', [4, 245, 180], 'oklch(86% 0.1795 165.32)'],
+  ['oklch', [10, 230, 175], 'oklch(82.16% 0.1662 167.61)', [9, 230, 175], 'oklch(82.16% 0.1661 167.6)'],
+  ['oklch', [15, 230, 75], 'oklch(80.53% 0.2459 145.68)', [14, 230, 75], 'oklch(80.53% 0.2459 145.67)'],
+  ['oklch', [250, 240, 5], 'oklch(93.29% 0.199 106.6)', [250, 240, 6], 'oklch(93.29% 0.199 106.59)'],
+];
+
 describe('parseColor', () => {
   it('reads every space as Chrome draws it on an sRGB canvas', () => {
     for (const [css, drawn] of CHROME_DRAWS) assert.deepEqual(bytes(/** @type {string} */ (css)), drawn, /** @type {string} */ (css));
+  });
+
+  it('gives Chrome’s pixel where a channel lands near a half: Chromium’s own single-precision conversions', () => {
+    for (const [css, drawn] of CHROME_DRAWS_NEAR_A_HALF) assert.deepEqual(bytes(css).slice(0, 3), drawn, css);
+    assert.deepEqual(bytes('hwb(200 10% 20%)'), [26, 145, 204, 255], 'green is 144.50002 in Chromium, 144.5 exactly on paper');
   });
 
   it('Chrome’s computed forms: legacy commas, modern slashes, percentages, three decimals of alpha', () => {
@@ -103,7 +167,7 @@ describe('formatColor', () => {
   it('writes every format; Chrome’s own conversions of rgb(26 115 232) agree to the places shown', () => {
     // Chrome: oklch(0.57368 0.194587 257.863), oklab(0.57368 -0.0409133 -0.190237), lab(48.7735 9.69777 -67.4727), lch(48.7735 68.1661 278.179).
     assert.deepEqual(COLOR_FORMATS.map((format) => formatColor(blue, format)), [
-      '#1a73e8', 'rgb(26 115 232)', 'hsl(214.1 81.7% 50.6%)', 'hwb(214 10% 9%)', 'lab(48.77 9.69 -67.47)', 'lch(48.77 68.16 278.17)',
+      '#1a73e8', 'rgb(26 115 232)', 'hsl(214.1 81.7% 50.6%)', 'hwb(214.1 10.2% 9%)', 'lab(48.77 9.7 -67.47)', 'lch(48.77 68.17 278.18)',
       'oklab(57.37% -0.0409 -0.1902)', 'oklch(57.37% 0.1946 257.86)',
     ]);
   });
@@ -112,7 +176,19 @@ describe('formatColor', () => {
     const half = { ...blue, a: 0.5 };
     assert.equal(formatColor(half, 'hex'), '#1a73e880');
     for (const format of COLOR_FORMATS.filter((f) => f !== 'hex')) assert.match(formatColor(half, format), / \/ 0\.5\)$/, format);
-    assert.equal(formatColor({ ...blue, a: 0.533 }, 'rgb'), 'rgb(26 115 232 / 0.53)');
+    assert.equal(formatColor({ ...blue, a: 0.53 }, 'rgb'), 'rgb(26 115 232 / 0.53)');
+  });
+
+  it('alpha in two decimals when that reads back as the same 8-bit alpha, else three: every one of the 256 reads back', () => {
+    assert.equal(formatColor({ ...blue, a: 128 / 255 }, 'rgb'), 'rgb(26 115 232 / 0.5)');
+    assert.equal(formatColor({ ...blue, a: 129 / 255 }, 'rgb'), 'rgb(26 115 232 / 0.506)', '0.51 would be 130');
+    assert.equal(formatColor({ ...blue, a: 0.533 }, 'oklch'), 'oklch(57.37% 0.1946 257.86 / 0.533)', '0.53 would be 135, not 136');
+    for (let alpha = 0; alpha < 256; alpha++) {
+      for (const format of COLOR_FORMATS) {
+        const css = formatColor({ ...blue, a: alpha / 255 }, format);
+        assert.equal(Math.round(/** @type {NonNullable<ReturnType<typeof parseColor>>} */ (parseColor(css)).a * 255), alpha, css);
+      }
+    }
   });
 
   it('greys have no hue; no -0', () => {
@@ -138,6 +214,31 @@ describe('formatColor', () => {
         assert.deepEqual(back && [back.r, back.g, back.b].map(Math.round), [color.r, color.g, color.b], `${format} ${color.r},${color.g},${color.b} → ${css}`);
       }
     }
+  });
+
+  it('colours whose spelling Chrome read back as another colour are written so that it reads them back (Chromium 156’s canvas)', () => {
+    for (const [format, colour, before, chromeReadBefore, now] of FORMAT_FIXED) {
+      const [r, g, b] = colour;
+      assert.equal(formatColor({ r, g, b, a: 1 }, format), now, `${format} ${colour}`);
+      assert.deepEqual(bytes(now).slice(0, 3), colour, `${now} reads back`);
+      assert.deepEqual(bytes(before).slice(0, 3), chromeReadBefore, `${before} is the other colour, as in Chrome`);
+      assert.equal(formatColor({ r, g, b, a: 0.5 }, format), now.replace(')', ' / 0.5)'), 'the same with alpha');
+    }
+  });
+
+  it('no channel reads back within a thousandth of a half, where Chrome’s rounding could go either way', () => {
+    for (let r = 0; r < 256; r += 15) {
+      for (let g = 0; g < 256; g += 15) {
+        for (let b = 0; b < 256; b += 15) {
+          for (const format of COLOR_FORMATS) {
+            const css = formatColor({ r, g, b, a: 1 }, format);
+            const back = /** @type {NonNullable<ReturnType<typeof parseColor>>} */ (parseColor(css));
+            [back.r - r, back.g - g, back.b - b].forEach((off) => assert.ok(Math.abs(off) < 0.499, `${css} for ${r},${g},${b} is ${off} off`));
+          }
+        }
+      }
+    }
+    assert.equal(formatColor({ r: 26, g: 111, b: 230, a: 1 }, 'hsl'), 'hsl(215 80.3% 50.2%)', 'hsl(215 80% 50%) is drawn 25,111,230 and reported 26,111,230');
   });
 
   it('as few places as read back: whole numbers where they do', () => {

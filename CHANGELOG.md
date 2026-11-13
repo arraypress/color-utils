@@ -5,6 +5,16 @@ All notable changes to `@arraypress/color-utils` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] — 2026-11-13
+
+### Fixed
+
+- **`formatColor` reads back in Chrome as the same 8-bit colour, for every colour.** A spelling was checked against the library's own reading of it, CSS Color 4's reference maths in double precision; Chromium converts in single precision with its own constants (a D50 white of `0.9642 1 0.8251`, the sRGB ICC profile's fixed-point matrix, a Bradford adaptation worked out in floats), so the two disagreed wherever a channel landed near a half, and for a dark channel of `lab`/`oklab` by up to 0.8 of a step. On a grid of 5 (140,608 colours) Chromium 156's canvas read back another colour for 33 `hsl`, 106 `hwb`, 197 `lab`, 251 `lch`, 1,288 `oklab` and 1,066 `oklch` spellings (`#3c00ff` was `hsl(254 100% 50%)`, which Chrome draws `59, 0, 255`). Now none, there, on a grid of 3 (636,056) or for a million random colours. `lab`, `lch`, `oklab` and `oklch` are written from Chromium's own conversion (the numbers its DevTools show: `rgb(26 115 232)` is `lab(48.77 9.7 -67.47)`), a grey is written as one where that reads back (`lab(50.03 0 0)`), and a spelling one of whose channels reads back within a thousandth of a half isn't used: Chrome draws `hsl(215 80% 50%)` as `25, 111, 230` and reports it as `rgb(26, 111, 230)`.
+- **`parseColor` gives the pixel Chrome draws** for `hsl()`, `hwb()`, `lab()`, `lch()`, `oklab()` and `oklch()`: `hwb(200 10% 20%)` is `26, 145, 204` (it was `26, 144, 204`). Of 40,000 random colours of each, the old reading was a step off for 33 `hsl`, 304 `hwb`, 975 `lab`, 1,026 `lch`, 910 `oklab` and 978 `oklch`; now for none (nor for any of 1.8 million more, nor any whole-number `hsl()` or `hwb()`). New module `src/chromium.js`: Chromium's conversions (`ui/gfx/color_conversions.cc`, `skcms_ext.cc`, skcms) in single precision. `spaces.js` keeps CSS Color 4's maths, and `color()` is still read with it.
+- **`formatColor` writes an alpha that reads back as the same 8-bit alpha**: two decimals where that does, else three, as Chrome writes a computed colour's (`#1a73e881` was `/ 0.51`, which is `#1a73e882`; now `/ 0.506`).
+
+Extensions that list the library's files (`web_accessible_resources`) need `chromium.js` added.
+
 ## [1.7.0] — 2026-11-12
 
 ### Added

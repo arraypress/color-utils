@@ -233,7 +233,9 @@ parseColor('currentcolor');          // null
 formatColor({ r: 26, g: 115, b: 232, a: 0.5 }, 'oklch'); // 'oklch(57.37% 0.1946 257.86 / 0.5)'
 ```
 
-Formats: `hex`, `rgb`, `hsl`, `hwb`, `lab`, `lch`, `oklab`, `oklch`; each reads back as the same 8-bit colour, written with as few decimal places as that takes (`hsl(0 100% 50%)` for red, `hsl(214.1 81.7% 50.6%)` for `#1a73e8`).
+Formats: `hex`, `rgb`, `hsl`, `hwb`, `lab`, `lch`, `oklab`, `oklch`; each reads back in Chrome as the same 8-bit colour, written with as few decimal places as that takes (`hsl(0 100% 50%)` for red, `hsl(214.1 81.7% 50.6%)` for `#1a73e8`), and alpha to two decimals, or three when it takes them (`/ 0.506` for 129 of 255). Checked in Chromium 156: every colour on a grid of 3 (636,056) and a million random ones, in each format, is drawn as the colour it was written from.
+
+`hsl()`, `hwb()`, `lab()`, `lch()`, `oklab()` and `oklch()` are converted as Chromium converts them (`src/chromium.js`: single precision, its D50 white and matrices), not by CSS Color 4's reference maths in double precision, which is a step off wherever a channel lands near a half: `hwb(200 10% 20%)` is `26, 145, 204` on screen, `hsl(215 80% 50%)` is `25, 111, 230`. The `lab` and `oklab` numbers written are Chromium's too, the ones its DevTools show.
 
 `parseColor` keeps what Chrome keeps: lightness within its range and chroma and saturation at 0 or more (`oklch(0.5 -0.1 30)` is a grey), and `null` for what Chrome calls invalid (`rgb(0,,0)`, `rgb(10, 20%, 30)`, `hsl(120, 100, 50)`). `cssColorsIn(value)` lists the colours written in a longer value (a gradient's stops, a shadow's colours), leaving out what's inside a `url(…)` or a quoted string.
 

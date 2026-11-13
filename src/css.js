@@ -3,19 +3,20 @@
  * (hex, named colours, `rgb()`, `hsl()`, `hwb()`, `lab()`, `lch()`,
  * `oklab()`, `oklch()` and `color()` in each predefined space, `none`
  * channels, either syntax) read as sRGB the way a browser draws it on an sRGB
- * screen (channels outside sRGB clipped, as Chrome does), and an sRGB colour
- * written in any of eight formats. Browsers give computed colours in exactly
- * these forms (`color-mix()`, `light-dark()` and relative colours come back
+ * screen (channels outside sRGB clipped, as Chrome does; `hsl()` to `oklch()`
+ * by Chromium's own single-precision conversions, `chromium.js`), and an sRGB
+ * colour written in any of eight formats, each as Chrome reads back exactly.
+ * Browsers give computed colours in exactly these forms (`color-mix()`, `light-dark()` and relative colours come back
  * resolved), so `parseColor(getComputedStyle(el).color)` always gives a colour.
  *
  * @module css
  */
 
+import { chromiumHsl, chromiumHwb, chromiumLab, chromiumOklab, chromiumPolar, chromiumToLab, chromiumToOklab } from './chromium.js';
 import { COLOR_NAMES } from './names.js';
 import { rgbaToHex } from './rgba.js';
 import {
-  RGB_SPACES, fromPolar, hslToSrgb, hwbToSrgb, labToLinear, linearToLab, linearToOklab, linearToSrgb, oklabToLinear,
-  rgbSpaceToLinear, srgbToHsl, srgbToHwb, srgbToLinear, toPolar,
+  RGB_SPACES, linearToSrgb, rgbSpaceToLinear, srgbToHsl, srgbToHwb, toPolar,
 } from './spaces.js';
 
 /** @import { Rgba } from './rgba.js' */
@@ -132,20 +133,44 @@ const fromSrgb = ([r, g, b], alpha) => {
 };
 
 /**
+ * sRGB channels (0-1) from Chromium's own conversion ({@link module:chromium}) as a colour: clipped,
+ * and scaled to 0-255 in single precision as Chromium does before it rounds to a pixel, so
+ * `Math.round` gives the pixel it draws (`hsl(215 80% 50%)`'s red is 25.499998: 25).
+ *
+ * @param {Triple} srgb - sRGB, 0-1, single precision.
+ * @param {number} alpha - Alpha.
+ * @returns {Rgba} The colour.
+ */
+const drawn = ([r, g, b], alpha) => {
+  const clip = (/** @type {number} */ c) => Math.fround(Math.max(0, Math.min(1, c)) * 255);
+  return { r: clip(r), g: clip(g), b: clip(b), a: alpha };
+};
+
+/**
+ * A hue within 0-360, as browsers take any angle.
+ *
+ * @param {number} degrees - The hue.
+ * @returns {number} It, 0 or more and below 360.
+ */
+const turn = (degrees) => ((degrees % 360) + 360) % 360;
+
+/**
  * Each CSS colour function's channels as a colour. Lightness is kept within its range and
  * chroma and saturation at 0 or more, as CSS Color 4 has it at parse time (and Chrome does:
- * `oklch(0.5 -0.1 30)` is a grey, not the opposite hue).
+ * `oklch(0.5 -0.1 30)` is a grey, not the opposite hue). `hsl()`, `hwb()`, `lab()`, `lch()`,
+ * `oklab()` and `oklch()` are converted as Chromium converts them, so each gives the pixel
+ * Chrome draws, not one a step off where a channel lands near a half.
  *
  * @type {Record<string, (c: Token[], alpha: number) => Rgba>}
  */
 const FUNCTIONS = {
   rgb: (c, alpha) => fromSrgb(/** @type {Triple} */ (c.map((t) => scaled(t, 255) / 255)), alpha),
-  hsl: ([h, s, l], alpha) => fromSrgb(hslToSrgb([h.value, within(scaled(s, 100) / 100), scaled(l, 100) / 100]), alpha),
-  hwb: ([h, w, b], alpha) => fromSrgb(hwbToSrgb([h.value, scaled(w, 100) / 100, scaled(b, 100) / 100]), alpha),
-  lab: ([l, a, b], alpha) => fromLinear(labToLinear([within(scaled(l, 100), 100), scaled(a, 125), scaled(b, 125)]), alpha),
-  lch: ([l, c, h], alpha) => fromLinear(labToLinear(fromPolar([within(scaled(l, 100), 100), within(scaled(c, 150)), h.value])), alpha),
-  oklab: ([l, a, b], alpha) => fromLinear(oklabToLinear([within(scaled(l, 1), 1), scaled(a, 0.4), scaled(b, 0.4)]), alpha),
-  oklch: ([l, c, h], alpha) => fromLinear(oklabToLinear(fromPolar([within(scaled(l, 1), 1), within(scaled(c, 0.4)), h.value])), alpha),
+  hsl: ([h, s, l], alpha) => drawn(chromiumHsl([turn(h.value), within(scaled(s, 100) / 100), scaled(l, 100) / 100]), alpha),
+  hwb: ([h, w, b], alpha) => drawn(chromiumHwb([turn(h.value), scaled(w, 100) / 100, scaled(b, 100) / 100]), alpha),
+  lab: ([l, a, b], alpha) => drawn(chromiumLab([within(scaled(l, 100), 100), scaled(a, 125), scaled(b, 125)]), alpha),
+  lch: ([l, c, h], alpha) => drawn(chromiumLab(chromiumPolar([within(scaled(l, 100), 100), within(scaled(c, 150)), h.value])), alpha),
+  oklab: ([l, a, b], alpha) => drawn(chromiumOklab([within(scaled(l, 1), 1), scaled(a, 0.4), scaled(b, 0.4)]), alpha),
+  oklch: ([l, c, h], alpha) => drawn(chromiumOklab(chromiumPolar([within(scaled(l, 1), 1), within(scaled(c, 0.4)), h.value])), alpha),
 };
 FUNCTIONS.rgba = FUNCTIONS.rgb;
 FUNCTIONS.hsla = FUNCTIONS.hsl;
@@ -226,18 +251,16 @@ export function parseColor(text) {
 const round = (value, places) => Number(value.toFixed(places)) || 0;
 
 /**
- * A hue, 0 when the colour has (almost) none.
- *
- * @param {number} hue - Degrees.
- * @param {number} chroma - How colourful; below `grey` it's grey.
- * @param {number} grey - The chroma below which there's no hue.
- * @param {number} places - Decimals.
- * @returns {number} The hue to write.
+ * How near a half a channel read back may land and still count as read back. Chrome draws
+ * `hsl(215 80% 50%)`'s red (25.499998) as 25 but reports it as 26 (its computed style adds a
+ * sliver before rounding), and its cosines and powers come from each system's maths library, so a
+ * channel within a thousandth of a half is one Chrome may round either way: such a spelling isn't used.
  */
-const hueOf = (hue, chroma, grey, places) => (chroma < grey ? 0 : round(hue, places) % 360);
+const HALF_MARGIN = 0.001;
 
 /**
- * Whether CSS reads back as a colour's 8-bit channels.
+ * Whether CSS reads back as a colour's 8-bit channels, in Chrome: read as Chromium converts it
+ * ({@link parseColor}), each channel clear of the half where rounding could go either way.
  *
  * @param {string} css - The CSS written.
  * @param {Rgba} color - The colour it was written from.
@@ -245,7 +268,19 @@ const hueOf = (hue, chroma, grey, places) => (chroma < grey ? 0 : round(hue, pla
  */
 function readsBack(css, color) {
   const back = parseColor(css);
-  return back !== null && (/** @type {const} */ (['r', 'g', 'b'])).every((key) => Math.round(back[key]) === Math.round(Math.max(0, Math.min(255, color[key]))));
+  return back !== null && (/** @type {const} */ (['r', 'g', 'b'])).every((key) => Math.abs(back[key] - Math.round(Math.max(0, Math.min(255, color[key])))) < 0.5 - HALF_MARGIN);
+}
+
+/**
+ * An alpha as CSS: two decimals when that reads back as the same 8-bit alpha, else three (as
+ * Chrome writes a computed colour's): `0.5` for 128 of 255, `0.506` for 129.
+ *
+ * @param {number} alpha - Alpha, 0-1.
+ * @returns {number} It, rounded.
+ */
+function alphaOf(alpha) {
+  const two = round(alpha, 2);
+  return Math.round(two * 255) === Math.round(alpha * 255) ? two : round(alpha, 3);
 }
 
 /**
@@ -257,7 +292,8 @@ function readsBack(css, color) {
  *   (`lch(48.77 68.16 278.17)`), `oklab` (`oklab(57.37% -0.0409 -0.1902)`), `oklch` (`oklch(57.37%
  *   0.1946 257.86)`): as few places as read back as the same 8-bit colour (`hsl(0 100% 50%)` for red, a
  *   decimal or two for most colours; one more place than shown for the few `oklab`/`oklch` colours that
- *   need it). Modern syntax; alpha after a slash when below 1, to two decimals.
+ *   need it), each checked as Chromium reads it. Modern syntax; alpha after a slash when below 1, to two
+ *   decimals, or three when it takes them to read back as the same 8-bit alpha.
  * @returns {string} The CSS.
  *
  * @example
@@ -265,52 +301,53 @@ function readsBack(css, color) {
  * formatColor({ r: 26, g: 115, b: 232, a: 0.5 }, 'rgb'); // 'rgb(26 115 232 / 0.5)'
  */
 export function formatColor(color, format) {
-  const alpha = round(color.a, 2);
+  const alpha = alphaOf(color.a);
   const slash = alpha < 1 ? ` / ${alpha}` : '';
   /** @type {Triple} */
   const srgb = [color.r / 255, color.g / 255, color.b / 255];
-  const linear = /** @type {Triple} */ (srgb.map(srgbToLinear));
   /**
    * The first of a format's spellings, shortest first, that reads back as the colour (the last
-   * when none does): each number of places, a near-grey's hue as 0 before its real one.
+   * when none does): each number of places, a near-grey as a grey (no hue, no chroma) before its
+   * real hue and chroma (or a and b).
    *
    * @param {readonly number[]} places - Decimal places, in turn.
-   * @param {(places: number, hue: (hue: number, chroma: number, grey: number) => number) => string} write - The
-   *   colour to that many places, its hue through `hue`.
+   * @param {number} chroma - How colourful the colour is, in the format's terms.
+   * @param {number} grey - The chroma below which it may be written as a grey.
+   * @param {(places: number, grey: boolean) => string} write - The colour to that many places;
+   *   `grey` when its hue and chroma (or a and b) are to be 0.
    * @returns {string} The CSS.
    */
-  const shortest = (places, write) => {
-    const spellings = places.flatMap((p) => [
-      write(p, (hue, chroma, grey) => hueOf(hue, chroma, grey, p)),
-      write(p, (hue) => round(hue, p) % 360),
-    ]);
+  const shortest = (places, chroma, grey, write) => {
+    const spellings = places.flatMap((p) => (chroma < grey ? [write(p, true), write(p, false)] : [write(p, false)]));
     return spellings.find((css) => readsBack(css, color)) ?? spellings[spellings.length - 1];
   };
+  /** @param {number} hue @param {number} p @param {boolean} grey @returns {number} */
+  const hueOf = (hue, p, grey) => (grey ? 0 : round(hue, p) % 360);
   switch (format) {
     case 'rgb': return `rgb(${round(color.r, 0)} ${round(color.g, 0)} ${round(color.b, 0)}${slash})`;
     case 'hsl': {
       const [h, s, l] = srgbToHsl(srgb);
-      return shortest([0, 1, 2], (p, hue) => `hsl(${hue(h, s, 0.005)} ${round(s * 100, p)}% ${round(l * 100, p)}%${slash})`);
+      return shortest([0, 1, 2, 3], s, 0.005, (p, grey) => `hsl(${hueOf(h, p, grey)} ${round(s * 100, p)}% ${round(l * 100, p)}%${slash})`);
     }
     case 'hwb': {
       const [h, w, b] = srgbToHwb(srgb);
-      return shortest([0, 1, 2], (p, hue) => `hwb(${hue(h, 1 - w - b, 0.005)} ${round(w * 100, p)}% ${round(b * 100, p)}%${slash})`);
+      return shortest([0, 1, 2, 3], 1 - w - b, 0.005, (p, grey) => `hwb(${hueOf(h, p, grey)} ${round(w * 100, p)}% ${round(b * 100, p)}%${slash})`);
     }
     case 'lab': {
-      const [l, a, b] = linearToLab(linear);
-      return shortest([2, 3], (p) => `lab(${round(l, p)} ${round(a, p)} ${round(b, p)}${slash})`);
+      const [l, a, b] = chromiumToLab(srgb);
+      return shortest([2, 3, 4], Math.hypot(a, b), 0.05, (p, grey) => `lab(${round(l, p)} ${grey ? 0 : round(a, p)} ${grey ? 0 : round(b, p)}${slash})`);
     }
     case 'lch': {
-      const [l, c, h] = toPolar(linearToLab(linear));
-      return shortest([2, 3], (p, hue) => `lch(${round(l, p)} ${round(c, p)} ${hue(h, c, 0.05)}${slash})`);
+      const [l, c, h] = toPolar(chromiumToLab(srgb));
+      return shortest([2, 3, 4], c, 0.05, (p, grey) => `lch(${round(l, p)} ${grey ? 0 : round(c, p)} ${hueOf(h, p, grey)}${slash})`);
     }
     case 'oklab': {
-      const [l, a, b] = linearToOklab(linear);
-      return shortest([2, 3], (p) => `oklab(${round(l * 100, p)}% ${round(a, p + 2)} ${round(b, p + 2)}${slash})`);
+      const [l, a, b] = chromiumToOklab(srgb);
+      return shortest([2, 3, 4], Math.hypot(a, b), 0.0005, (p, grey) => `oklab(${round(l * 100, p)}% ${grey ? 0 : round(a, p + 2)} ${grey ? 0 : round(b, p + 2)}${slash})`);
     }
     case 'oklch': {
-      const [l, c, h] = toPolar(linearToOklab(linear));
-      return shortest([2, 3], (p, hue) => `oklch(${round(l * 100, p)}% ${round(c, p + 2)} ${hue(h, c, 0.0005)}${slash})`);
+      const [l, c, h] = toPolar(chromiumToOklab(srgb));
+      return shortest([2, 3, 4], c, 0.0005, (p, grey) => `oklch(${round(l * 100, p)}% ${grey ? 0 : round(c, p + 2)} ${hueOf(h, p, grey)}${slash})`);
     }
     default: return rgbaToHex(color);
   }
